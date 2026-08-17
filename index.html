@@ -3,37 +3,26 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <link rel="icon" type="image/svg+xml" href="/chinese-chess/favicon.svg">
-  <title>中国象棋 - AI对战</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>中国象棋 · 双人在线对战</title>
   <style>
-    ::root {
+    :root {
       --bg-deep: #1a1410;
       --bg-panel: #241e18;
-      --board-light: #d4a854;
-      --board-dark: #b8893c;
-      --board-border: #8b6914;
-      --red: #c0392b;
-      --red-glow: rgba(192, 57, 43, 0.4);
-      --black: #1a1a2e;
-      --black-glow: rgba(26, 26, 46, 0.4);
       --gold: #d4a854;
       --gold-dim: #a88634;
       --text: #e8ddd0;
       --text-dim: #a09080;
-      --text-faint: #705f50;
-      --radius: 8px;
-      --trans: 0.2s ease;
     }
 
     * {
       margin: 0;
       padding: 0;
-      box-sizing: border-box
+      box-sizing: border-box;
     }
 
-    html,
-    body {
+    html, body {
       height: 100%;
       width: 100%;
       overflow: hidden;
@@ -42,1089 +31,416 @@
       font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
       user-select: none;
       -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
       display: flex;
       justify-content: center;
-      align-items: center
-    }
-
-    #app {
-      width: 100%;
-      height: 100%;
-      max-width: 960px;
-      display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 10px;
-      gap: 6px
-    }
-
-    /* Header */
-    #header {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 2px 8px;
-      flex-shrink: 0;
-      flex-wrap: wrap;
-      gap: 4px
-    }
-
-    #header .title {
-      font-size: clamp(1em, 2.5vw, 1.4em);
-      color: var(--gold);
-      letter-spacing: 4px;
-      text-shadow: 0 0 20px rgba(212, 168, 84, 0.2);
-      font-weight: bold
-    }
-
-    #header .title small {
-      font-size: 0.55em;
-      opacity: 0.5;
-      letter-spacing: 1px;
-      margin-left: 6px
-    }
-
-    #header-btns {
-      display: flex;
-      gap: 5px;
-      flex-wrap: wrap
-    }
-
-    #header-btns button,
-    #header-btns select {
-      padding: 3px 10px;
-      border: 1px solid var(--gold-dim);
-      border-radius: var(--radius);
-      background: var(--bg-panel);
-      color: var(--gold);
-      font-size: clamp(0.65em, 1.4vw, 0.78em);
-      cursor: pointer;
-      transition: all var(--trans);
-      font-family: inherit;
-      outline: none
-    }
-
-    #header-btns button:hover {
-      background: var(--gold-dim);
-      color: var(--bg-deep)
-    }
-
-    #header-btns select option {
-      background: var(--bg-panel);
-      color: var(--gold)
-    }
-
-    /* Player info */
-    #players {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 3px 12px;
-      flex-shrink: 0
-    }
-
-    .player-info {
-      display: flex;
-      align-items: center;
-      gap: 8px
-    }
-
-    .player-info .name {
-      font-size: clamp(0.82em, 1.8vw, 0.95em);
-      font-weight: bold;
-      transition: color var(--trans)
-    }
-
-    .player-info .name.ai-label::after {
-      content: ' AI';
-      font-size: 0.7em;
-      opacity: 0.6;
-      margin-left: 2px
-    }
-
-    .player-info .name.active-red {
-      color: #e74c3c;
-      text-shadow: 0 0 12px rgba(231, 76, 60, 0.4)
-    }
-
-    .player-info .name.active-black {
-      color: #999;
-      text-shadow: 0 0 12px rgba(153, 153, 153, 0.3)
-    }
-
-    .player-info .name.inactive {
-      color: var(--text-faint)
-    }
-
-    .player-info .captured {
-      display: flex;
-      gap: 2px;
-      flex-wrap: wrap;
-      max-width: 120px
-    }
-
-    .player-info .captured span {
-      font-size: clamp(0.6em, 1.2vw, 0.75em);
-      opacity: 0.7
-    }
-
-    #turn-indicator {
-      padding: 3px 14px;
-      border-radius: 20px;
-      font-size: clamp(0.7em, 1.4vw, 0.82em);
-      font-weight: bold;
-      transition: all 0.3s ease;
-      white-space: nowrap
-    }
-
-    #turn-indicator.red {
-      background: rgba(231, 76, 60, 0.15);
-      color: #e74c3c;
-      border: 1px solid rgba(231, 76, 60, 0.3)
-    }
-
-    #turn-indicator.black {
-      background: rgba(85, 85, 85, 0.2);
-      color: #999;
-      border: 1px solid rgba(85, 85, 85, 0.3)
-    }
-
-    #turn-indicator.over {
-      background: rgba(212, 168, 84, 0.15);
-      color: var(--gold);
-      border: 1px solid rgba(212, 168, 84, 0.3)
-    }
-
-    #turn-indicator.thinking {
-      background: rgba(100, 200, 255, 0.12);
-      color: #64c8ff;
-      border: 1px solid rgba(100, 200, 255, 0.25);
-      animation: thinkPulse 1.2s ease infinite
-    }
-
-    @keyframes thinkPulse {
-
-      0%,
-      100% {
-        opacity: 1
-      }
-
-      50% {
-        opacity: 0.5
-      }
-    }
-
-    /* Board wrapper */
-    #board-wrap {
-      position: relative;
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      min-height: 0
     }
 
     #game-canvas {
       display: block;
-      border-radius: 6px;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), 0 0 80px rgba(139, 105, 20, 0.1);
-      cursor: pointer;
       touch-action: none;
-      max-width: 100%;
-      max-height: 100%
+      cursor: pointer;
     }
 
-    /* Move history */
-    #history-panel {
-      width: 100%;
-      max-height: 70px;
-      overflow-y: auto;
-      flex-shrink: 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 2px;
-      padding: 3px 8px;
-      background: var(--bg-panel);
-      border-radius: var(--radius);
-      border: 1px solid rgba(139, 105, 20, 0.2)
-    }
-
-    #history-panel::-webkit-scrollbar {
-      width: 3px
-    }
-
-    #history-panel::-webkit-scrollbar-track {
-      background: transparent
-    }
-
-    #history-panel::-webkit-scrollbar-thumb {
-      background: var(--gold-dim);
-      border-radius: 2px
-    }
-
-    .move-entry {
-      font-size: clamp(0.5em, 1vw, 0.65em);
-      padding: 1px 5px;
-      border-radius: 3px;
-      background: rgba(212, 168, 84, 0.08);
-      color: var(--text-dim);
-      white-space: nowrap
-    }
-
-    .move-entry:nth-child(odd) {
-      color: #e74c3c
-    }
-
-    .move-entry:nth-child(even) {
-      color: #999
-    }
-
-    /* Game over overlay */
-    #overlay {
-      display: none;
+    /* ---------- 大厅 / 登录 容器 ---------- */
+    #lobby {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 100;
-      justify-content: center;
+      z-index: 20;
+      display: flex;
       align-items: center;
-      backdrop-filter: blur(4px)
+      justify-content: center;
     }
 
-    #overlay.active {
-      display: flex
-    }
-
-    #overlay-box {
-      background: var(--bg-panel);
+    .panel {
+      background: linear-gradient(160deg, #2c241c, #1c1610);
       border: 2px solid var(--gold-dim);
-      border-radius: 16px;
-      padding: clamp(20px, 4vw, 40px) clamp(24px, 5vw, 50px);
+      border-radius: 18px;
+      padding: 30px 28px 26px;
+      width: min(94vw, 460px);
+      max-height: 92vh;
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.6), 0 0 120px rgba(139, 105, 20, 0.15);
       text-align: center;
-      max-width: 90%;
-      animation: popIn 0.3s ease
+      display: flex;
+      flex-direction: column;
+      animation: popIn 0.35s ease;
     }
 
     @keyframes popIn {
-      0% {
-        transform: scale(0.8);
-        opacity: 0
-      }
-
-      100% {
-        transform: scale(1);
-        opacity: 1
-      }
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
     }
 
-    #overlay-box .result {
-      font-size: clamp(1.4em, 4vw, 2em);
-      font-weight: bold;
-      margin-bottom: 6px
+    .panel h1 {
+      font-size: 1.6em;
+      color: var(--gold);
+      letter-spacing: 6px;
+      text-shadow: 0 0 20px rgba(212, 168, 84, 0.3);
+      margin-bottom: 4px;
     }
 
-    #overlay-box .sub {
+    .panel .sub {
+      font-size: 0.82em;
       color: var(--text-dim);
-      font-size: clamp(0.8em, 2vw, 0.95em);
-      margin-bottom: 16px
+      margin-bottom: 22px;
     }
 
-    #overlay-box button {
-      padding: 8px 28px;
+    /* 登录 */
+    .field {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.78em;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--gold-dim);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text);
+      font-size: 1em;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input:focus {
+      border-color: var(--gold);
+    }
+
+    .field input::placeholder {
+      color: #6a5b4a;
+    }
+
+    .primary-btn {
+      width: 100%;
+      padding: 14px;
       border: none;
-      border-radius: var(--radius);
+      border-radius: 12px;
       background: linear-gradient(135deg, var(--gold), var(--gold-dim));
       color: var(--bg-deep);
-      font-size: clamp(0.85em, 2vw, 1em);
+      font-size: 1.05em;
+      font-weight: bold;
+      letter-spacing: 4px;
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+      font-family: inherit;
+    }
+
+    .primary-btn:hover {
+      transform: scale(1.02);
+      filter: brightness(1.08);
+    }
+
+    .primary-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* 大厅头部：我的信息 */
+    .me-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(212, 168, 84, 0.25);
+      border-radius: 12px;
+      margin-bottom: 14px;
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #1a1410;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    }
+
+    .me-row .info {
+      text-align: left;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .me-row .info .nm {
+      font-weight: bold;
+      font-size: 0.95em;
+    }
+
+    .me-row .info .st {
+      font-size: 0.75em;
+      color: #64c8ff;
+    }
+
+    .me-row .logout-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--gold-dim);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--gold);
+      cursor: pointer;
+      font-size: 0.78em;
+      font-family: inherit;
+    }
+
+    /* 在线玩家列表 */
+    .list-title {
+      font-size: 0.82em;
+      color: var(--text-dim);
+      text-align: left;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .player-list {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      margin: 0 -6px;
+      padding: 0 6px;
+    }
+
+    .player-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .player-list::-webkit-scrollbar-thumb {
+      background: var(--gold-dim);
+      border-radius: 2px;
+    }
+
+    .player-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid rgba(212, 168, 84, 0.18);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .player-item:hover {
+      background: rgba(212, 168, 84, 0.12);
+      border-color: var(--gold-dim);
+    }
+
+    .player-item .avatar {
+      background: linear-gradient(135deg, #3a6ea5, #274c73);
+      color: #e8f0ff;
+    }
+
+    .player-item .nm {
+      flex: 1;
+      text-align: left;
+      font-size: 0.95em;
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .player-item .status {
+      font-size: 0.72em;
+      color: var(--text-dim);
+    }
+
+    .empty-tip {
+      text-align: center;
+      color: #6a5b4a;
+      padding: 30px 0;
+      font-size: 0.85em;
+    }
+
+    /* 邀请等待条 */
+    .invite-pending {
+      padding: 10px 14px;
+      margin-top: 12px;
+      background: rgba(100, 200, 255, 0.1);
+      border: 1px solid rgba(100, 200, 255, 0.3);
+      border-radius: 10px;
+      font-size: 0.85em;
+      color: #64c8ff;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .invite-pending button {
+      padding: 5px 14px;
+      border: 1px solid var(--gold-dim);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--gold);
+      cursor: pointer;
+      font-size: 0.8em;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    /* ---------- 模态确认弹窗 ---------- */
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+    }
+
+    .modal-mask.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background: linear-gradient(160deg, #2c241c, #1c1610);
+      border: 2px solid var(--gold-dim);
+      border-radius: 16px;
+      padding: 26px 24px;
+      width: min(88vw, 360px);
+      text-align: center;
+      animation: popIn 0.3s ease;
+    }
+
+    .modal-box .t {
+      font-size: 1.05em;
+      font-weight: bold;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .modal-box .d {
+      font-size: 0.82em;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .modal-btns {
+      display: flex;
+      gap: 10px;
+    }
+
+    .modal-btns button {
+      flex: 1;
+      padding: 11px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95em;
       font-weight: bold;
       cursor: pointer;
-      transition: transform var(--trans);
-      font-family: inherit
+      font-family: inherit;
     }
 
-    #overlay-box button:hover {
-      transform: scale(1.05)
+    .modal-btns .ok {
+      background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+      color: var(--bg-deep);
     }
 
-    /* Responsive */
-    @media(max-width:600px) {
-      #app {
-        padding: 4px;
-        gap: 3px
-      }
+    .modal-btns .cancel {
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-dim);
+      border: 1px solid rgba(139, 105, 20, 0.4);
+    }
 
-      #players {
-        padding: 2px 6px
-      }
+    /* ---------- Toast ---------- */
+    #toast {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(36, 30, 24, 0.95);
+      border: 1px solid var(--gold-dim);
+      color: var(--text);
+      padding: 10px 22px;
+      border-radius: 24px;
+      font-size: 0.9em;
+      z-index: 70;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      max-width: 86vw;
+      text-align: center;
+    }
 
-      .player-info .captured {
-        display: none
-      }
-
-      #history-panel {
-        max-height: 45px
-      }
-
-      #header-btns button,
-      #header-btns select {
-        padding: 2px 6px;
-        font-size: clamp(0.6em, 2vw, 0.7em)
-      }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
   </style>
 </head>
 
 <body>
-  <div id="app">
-    <div id="header">
-      <div class="title">象棋 <small>中国象棋</small></div>
-      <div id="header-btns">
-        <select id="mode-select" onchange="onModeChange()">
-          <option value="pvp">👥 双人</option>
-          <option value="pve-red" selected>🤖 人机(执红)</option>
-          <option value="pve-black">🤖 人机(执黑)</option>
-        </select>
-        <select id="difficulty-select">
-          <option value="1">初级</option>
-          <option value="2" selected>中级</option>
-          <option value="3">高级</option>
-          <option value="4">大师</option>
-        </select>
-        <button onclick="undoMove()">↩ 悔棋</button>
-        <button onclick="newGame()"
-          style="background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--bg-deep);font-weight:bold">🔄
-          新局</button>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- 大厅：登录 + 在线玩家列表 -->
+  <div id="lobby">
+    <!-- 登录视图 -->
+    <div class="panel" id="login-panel">
+      <h1>中国象棋</h1>
+      <div class="sub">双人在线对战</div>
+      <div class="field">
+        <label for="input-name">你的昵称</label>
+        <input id="input-name" type="text" maxlength="12" placeholder="请输入昵称" autocomplete="off">
       </div>
+      <button class="primary-btn" id="login-btn">进入大厅</button>
     </div>
-    <div id="players">
-      <div class="player-info">
-        <span class="name" id="p1-name">🔴 红方</span>
-        <div class="captured" id="p1-captured"></div>
+
+    <!-- 大厅视图 -->
+    <div class="panel" id="lobby-panel" style="display:none">
+      <h1>在线大厅</h1>
+      <div class="sub">点击在线玩家头像邀请对战</div>
+      <div class="me-row">
+        <div class="avatar" id="me-avatar"></div>
+        <div class="info">
+          <div class="nm" id="me-name"></div>
+          <div class="st" id="me-status">在线</div>
+        </div>
+        <button class="logout-btn" id="logout-btn">退出</button>
       </div>
-      <div id="turn-indicator" class="red">红方走棋</div>
-      <div class="player-info" style="text-align:right">
-        <div class="captured" id="p2-captured"></div>
-        <span class="name" id="p2-name">⚫ 黑方</span>
+      <div class="list-title">在线玩家（<span id="online-count">0</span>）</div>
+      <div class="player-list" id="player-list"></div>
+      <div class="invite-pending" id="invite-pending">
+        <span id="invite-pending-text">等待对方接受...</span>
+        <button id="invite-cancel-btn">取消</button>
       </div>
-    </div>
-    <div id="board-wrap">
-      <canvas id="game-canvas"></canvas>
-    </div>
-    <div id="history-panel"></div>
-  </div>
-  <div id="overlay">
-    <div id="overlay-box">
-      <div class="result" id="result-text"></div>
-      <div class="sub" id="result-sub"></div>
-      <button onclick="newGame()">再来一局</button>
     </div>
   </div>
-  <script>
-    // ============================================================
-    //  Chinese Chess — 中国象棋  (人机对战版)
-    // ============================================================
-    const PIECE = {
-      general: 'general', advisor: 'advisor', elephant: 'elephant',
-      horse: 'horse', chariot: 'chariot', cannon: 'cannon', soldier: 'soldier'
-    };
-    const NAMES = {
-      red: { general: '帅', advisor: '仕', elephant: '相', horse: '馬', chariot: '車', cannon: '炮', soldier: '兵' },
-      black: { general: '将', advisor: '士', elephant: '象', horse: '馬', chariot: '車', cannon: '砲', soldier: '卒' }
-    };
-    const COLS = 9, ROWS = 10;
-    const PALACE = { red: { r1: 7, r2: 9, c1: 3, c2: 5 }, black: { r1: 0, r2: 2, c1: 3, c2: 5 } };
 
-    let board = [], turn = 'red', selected = null, validMoves = [], moveHistory = [], captured = { red: [], black: [] };
-    let animating = null;
-    let canvas, ctx;
-    let aiThinking = false;
-    let gameMode = 'pve-red'; // pvp | pve-red | pve-black
-    let aiDepth = 2;
+  <!-- 模态弹窗：邀请确认 / 收到邀请 -->
+  <div class="modal-mask" id="modal">
+    <div class="modal-box">
+      <div class="t" id="modal-title"></div>
+      <div class="d" id="modal-desc"></div>
+      <div class="modal-btns" id="modal-btns"></div>
+    </div>
+  </div>
 
-    function getAIcolor() { return gameMode === 'pve-red' ? 'black' : 'red'; }
-    function isPVP() { return gameMode === 'pvp'; }
-    function isAI(color) { return !isPVP() && color === getAIcolor(); }
+  <div id="toast"></div>
 
-    function initBoard() {
-      const b = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
-      const set = (r, c, color, type) => { b[r][c] = { color, type } };
-      for (let c = 0; c < COLS; c++) {
-        const types = [PIECE.chariot, PIECE.horse, PIECE.elephant, PIECE.advisor, PIECE.general, PIECE.advisor, PIECE.elephant, PIECE.horse, PIECE.chariot];
-        set(0, c, 'black', types[c]);
-      }
-      set(2, 1, 'black', PIECE.cannon); set(2, 7, 'black', PIECE.cannon);
-      for (let c = 0; c < COLS; c += 2) set(3, c, 'black', PIECE.soldier);
-      for (let c = 0; c < COLS; c++) {
-        const types = [PIECE.chariot, PIECE.horse, PIECE.elephant, PIECE.advisor, PIECE.general, PIECE.advisor, PIECE.elephant, PIECE.horse, PIECE.chariot];
-        set(9, c, 'red', types[c]);
-      }
-      set(7, 1, 'red', PIECE.cannon); set(7, 7, 'red', PIECE.cannon);
-      for (let c = 0; c < COLS; c += 2) set(6, c, 'red', PIECE.soldier);
-      return b;
-    }
-
-    function cloneBoard(b) { return b.map(row => row.map(p => p ? { ...p } : null)); }
-
-    function getGeneral(b, color) {
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c];
-        if (p && p.color === color && p.type === PIECE.general) return { r, c };
-      }
-      return null;
-    }
-
-    function rawMoves(b, r, c) {
-      const p = b[r][c]; if (!p) return [];
-      const moves = [];
-      const inBounds = (rr, cc) => rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS;
-      const add = (rr, cc) => { if (inBounds(rr, cc) && (!b[rr][cc] || b[rr][cc].color !== p.color)) moves.push({ r: rr, c: cc }); };
-      const occupied = (rr, cc) => inBounds(rr, cc) && b[rr][cc] !== null;
-
-      switch (p.type) {
-        case PIECE.general: {
-          const pa = p.color === 'red' ? PALACE.red : PALACE.black;
-          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-            const rr = r + dr, cc = c + dc;
-            if (rr >= pa.r1 && rr <= pa.r2 && cc >= pa.c1 && cc <= pa.c2) add(rr, cc);
-          }
-          const opp = p.color === 'red' ? 'black' : 'red';
-          const oppG = getGeneral(b, opp);
-          if (oppG && oppG.c === c) {
-            let blocked = false;
-            for (let rr = Math.min(r, oppG.r) + 1; rr < Math.max(r, oppG.r); rr++) { if (b[rr][c]) { blocked = true; break; } }
-            if (!blocked) add(oppG.r, oppG.c);
-          }
-          break;
-        }
-        case PIECE.advisor: {
-          const pa = p.color === 'red' ? PALACE.red : PALACE.black;
-          for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-            const rr = r + dr, cc = c + dc;
-            if (rr >= pa.r1 && rr <= pa.r2 && cc >= pa.c1 && cc <= pa.c2) add(rr, cc);
-          }
-          break;
-        }
-        case PIECE.elephant: {
-          const minR = p.color === 'red' ? 5 : 0, maxR = p.color === 'red' ? 9 : 4;
-          for (const [dr, dc, br, bc] of [[-2, -2, -1, -1], [-2, 2, -1, 1], [2, -2, 1, -1], [2, 2, 1, 1]]) {
-            const rr = r + dr, cc = c + dc, brr = r + br, bcc = c + bc;
-            if (inBounds(rr, cc) && rr >= minR && rr <= maxR && !occupied(brr, bcc)) add(rr, cc);
-          }
-          break;
-        }
-        case PIECE.horse: {
-          for (const [dr, dc, br, bc] of [[-2, -1, -1, 0], [-2, 1, -1, 0], [2, -1, 1, 0], [2, 1, 1, 0], [-1, -2, 0, -1], [-1, 2, 0, 1], [1, -2, 0, -1], [1, 2, 0, 1]]) {
-            const rr = r + dr, cc = c + dc, brr = r + br, bcc = c + bc;
-            if (inBounds(rr, cc) && !occupied(brr, bcc)) add(rr, cc);
-          }
-          break;
-        }
-        case PIECE.chariot: {
-          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-            let rr = r + dr, cc = c + dc;
-            while (inBounds(rr, cc)) {
-              if (b[rr][cc]) { if (b[rr][cc].color !== p.color) moves.push({ r: rr, c: cc }); break; }
-              moves.push({ r: rr, c: cc }); rr += dr; cc += dc;
-            }
-          }
-          break;
-        }
-        case PIECE.cannon: {
-          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-            let rr = r + dr, cc = c + dc, jumped = false;
-            while (inBounds(rr, cc)) {
-              if (!jumped) { if (b[rr][cc]) { jumped = true; } else moves.push({ r: rr, c: cc }); }
-              else { if (b[rr][cc]) { if (b[rr][cc].color !== p.color) moves.push({ r: rr, c: cc }); break; } }
-              rr += dr; cc += dc;
-            }
-          }
-          break;
-        }
-        case PIECE.soldier: {
-          const forward = p.color === 'red' ? -1 : 1;
-          const crossed = p.color === 'red' ? r <= 4 : r >= 5;
-          add(r + forward, c);
-          if (crossed) { add(r, c - 1); add(r, c + 1); }
-          break;
-        }
-      }
-      return moves;
-    }
-
-    function inCheck(b, color) {
-      const g = getGeneral(b, color); if (!g) return true;
-      const opp = color === 'red' ? 'black' : 'red';
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c];
-        if (p && p.color === opp && rawMoves(b, r, c).some(m => m.r === g.r && m.c === g.c)) return true;
-      }
-      return false;
-    }
-
-    function getLegalMoves(b, r, c) {
-      const p = b[r][c]; if (!p) return [];
-      const raw = rawMoves(b, r, c);
-      const legal = [];
-      for (const m of raw) {
-        const nb = cloneBoard(b);
-        nb[m.r][m.c] = nb[r][c]; nb[r][c] = null;
-        if (!inCheck(nb, p.color)) legal.push(m);
-      }
-      return legal;
-    }
-
-    function hasLegalMove(b, color) {
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c];
-        if (p && p.color === color && getLegalMoves(b, r, c).length > 0) return true;
-      }
-      return false;
-    }
-
-    function getAllLegalMoves(b, color) {
-      const all = [];
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c];
-        if (p && p.color === color) {
-          const moves = getLegalMoves(b, r, c);
-          for (const m of moves) all.push({ fr: r, fc: c, tr: m.r, tc: m.c });
-        }
-      }
-      return all;
-    }
-
-    // ============================================================
-    //  AI Engine — Minimax + Alpha-Beta + Quiescence Search
-    // ============================================================
-    const PIECE_VALUES = {
-      general: 10000, chariot: 920, cannon: 460, horse: 410,
-      elephant: 200, advisor: 200, soldier: 100
-    };
-    const PVAL = PIECE_VALUES; // shorthand
-    const SOLDIER_CROSSED_BONUS = 120;
-    const MOBILITY_WEIGHT = 3;
-    const CHECK_BONUS = 80;
-
-    // Position tables (row 0=top/black side, row 9=bottom/red side).
-    // For black pieces the row is mirrored in getPST.
-    const PST = {
-      chariot: [
-        [12,16,14,20,18,20,14,16,12],
-        [14,18,16,22,24,22,16,18,14],
-        [10,14,12,18,20,18,12,14,10],
-        [10,16,14,20,22,20,14,16,10],
-        [8,12,10,16,18,16,10,12,8],
-        [8,12,10,16,16,16,10,12,8],
-        [4,8,6,12,12,12,6,8,4],
-        [2,6,4,10,10,10,4,6,2],
-        [6,2,6,12,6,12,6,2,6],
-        [-4,6,4,10,10,10,4,6,-4]
-      ],
-      cannon: [
-        [6,4,0,-8,-10,-8,0,4,6],
-        [2,2,0,-2,-10,-2,0,2,2],
-        [2,2,0,-8,-6,-8,0,2,2],
-        [0,0,-2,4,10,4,-2,0,0],
-        [0,0,0,2,8,2,0,0,0],
-        [-2,0,4,2,6,2,4,0,-2],
-        [0,0,0,2,4,2,0,0,0],
-        [6,0,8,6,10,6,8,0,6],
-        [2,4,6,8,8,8,6,4,2],
-        [2,4,6,8,6,8,6,4,2]
-      ],
-      horse: [
-        [4,8,16,12,4,12,16,8,4],
-        [4,10,28,16,8,16,28,10,4],
-        [12,14,16,20,18,20,16,14,12],
-        [8,24,18,24,20,24,18,24,8],
-        [6,16,14,18,16,18,14,16,6],
-        [4,12,16,14,12,14,16,12,4],
-        [2,6,8,6,10,6,8,6,2],
-        [4,2,8,8,4,8,8,2,4],
-        [0,2,4,4,-2,4,4,2,0],
-        [0,-6,0,0,2,0,0,-6,0]
-      ],
-      advisor: [
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,26,30,26,0,0,0],
-        [0,0,0,36,0,36,0,0,0]
-      ],
-      elephant: [
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,24,0,0,0,24,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [20,0,0,0,28,0,0,0,20],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,24,0,0,0,24,0,0],
-        [0,0,0,0,0,0,0,0,0]
-      ],
-      general: [
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,2,6,2,0,0,0],
-        [0,0,0,12,0,12,0,0,0],
-        [0,0,0,0,24,0,0,0,0]
-      ],
-      soldier: [
-        [22,36,58,82,102,82,58,36,22], // r0 deepest enemy
-        [18,30,46,64,76,64,46,30,18], // r1
-        [12,22,34,48,56,48,34,22,12], // r2
-        [6,12,20,30,38,30,20,12,6],   // r3
-        [2,6,12,18,22,18,12,6,2],     // r4 crossing river
-        [0,0,0,0,0,0,0,0,0],          // r5
-        [0,0,0,0,0,0,0,0,0],          // r6 red start
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0],
-        [0,0,0,0,0,0,0,0,0]
-      ]
-    };
-
-    function getPST(type, color, r, c) {
-      if (color === 'black') r = 9 - r;
-      const t = PST[type];
-      return (t && t[r]) ? t[r][c] : 0;
-    }
-
-    // Count raw moves (no check filter) — fast mobility estimate
-    function countRawMoves(b, color) {
-      let n = 0;
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c];
-        if (p && p.color === color) n += rawMoves(b, r, c).length;
-      }
-      return n;
-    }
-
-    // Improved evaluation: material + PST + mobility + check bonus
-    function evaluateBoard(b, color) {
-      let score = 0;
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = b[r][c]; if (!p) continue;
-        let v = PVAL[p.type] || 0;
-        if (p.type === PIECE.soldier) {
-          const crossed = p.color === 'red' ? r <= 4 : r >= 5;
-          if (crossed) v += SOLDIER_CROSSED_BONUS;
-        }
-        v += getPST(p.type, p.color, r, c);
-        score += (p.color === color) ? v : -v;
-      }
-      // Mobility using raw moves (fast, no board clone)
-      score += countRawMoves(b, color) * MOBILITY_WEIGHT;
-      score -= countRawMoves(b, color === 'red' ? 'black' : 'red') * MOBILITY_WEIGHT;
-      // Check bonus
-      if (inCheck(b, color)) score -= CHECK_BONUS;
-      if (inCheck(b, color === 'red' ? 'black' : 'red')) score += CHECK_BONUS;
-      return score;
-    }
-
-    // ---- Quiescence search: explore captures at leaf nodes ----
-    function quiescence(b, alpha, beta, isMaximizing, aiColor) {
-      const standPat = evaluateBoard(b, aiColor);
-      if (isMaximizing) {
-        if (standPat >= beta) return { score: beta };
-        if (standPat > alpha) alpha = standPat;
-      } else {
-        if (standPat <= alpha) return { score: alpha };
-        if (standPat < beta) beta = standPat;
-      }
-      const color = isMaximizing ? aiColor : (aiColor === 'red' ? 'black' : 'red');
-      const moves = getAllLegalMoves(b, color);
-      // Only capture moves in quiescence
-      const caps = moves.filter(m => b[m.tr][m.tc] !== null);
-      if (caps.length === 0) return { score: standPat };
-      // MVV-LVA ordering: highest victim value first
-      caps.sort((a, b) => {
-        const va = PVAL[b[b.tr][b.tc].type] || 0;
-        const vb = PVAL[a[a.tr][a.tc].type] || 0;
-        return vb - va;
-      });
-      let best = { score: isMaximizing ? -Infinity : Infinity };
-      for (const m of caps) {
-        const nb = cloneBoard(b);
-        nb[m.tr][m.tc] = nb[m.fr][m.fc]; nb[m.fr][m.fc] = null;
-        const res = quiescence(nb, alpha, beta, !isMaximizing, aiColor);
-        if (isMaximizing) {
-          if (res.score > best.score) best = { ...res, fr: m.fr, fc: m.fc, tr: m.tr, tc: m.tc };
-          alpha = Math.max(alpha, best.score);
-        } else {
-          if (res.score < best.score) best = { ...res, fr: m.fr, fc: m.fc, tr: m.tr, tc: m.tc };
-          beta = Math.min(beta, best.score);
-        }
-        if (alpha >= beta) break;
-      }
-      return best;
-    }
-
-    // Minimax with alpha-beta, calling quiescence at leaf nodes
-    function minimax(bd, depth, alpha, beta, isMaximizing, aiColor) {
-      const humanColor = aiColor === 'red' ? 'black' : 'red';
-      if (depth === 0) return quiescence(bd, alpha, beta, isMaximizing, aiColor);
-      const color = isMaximizing ? aiColor : humanColor;
-      const moves = getAllLegalMoves(bd, color);
-      if (moves.length === 0) {
-        return { score: isMaximizing ? -99999 + depth : 99999 - depth };
-      }
-      // MVV-LVA ordering: capture most valuable victim first
-      moves.sort((m1, m2) => {
-        const v1 = m1.tr !== undefined && bd[m1.tr] && bd[m1.tr][m1.tc] ? (PVAL[bd[m1.tr][m1.tc].type] || 0) : 0;
-        const v2 = m2.tr !== undefined && bd[m2.tr] && bd[m2.tr][m2.tc] ? (PVAL[bd[m2.tr][m2.tc].type] || 0) : 0;
-        return v2 - v1;
-      });
-      let best = null;
-      if (isMaximizing) {
-        best = { score: -Infinity };
-        for (const m of moves) {
-          const nb = cloneBoard(bd);
-          nb[m.tr][m.tc] = nb[m.fr][m.fc]; nb[m.fr][m.fc] = null;
-          // Check extension: search 1 ply deeper if giving check
-          const oppInCheck = inCheck(nb, color === 'red' ? 'black' : 'red');
-          const ext = (oppInCheck && depth > 1) ? 1 : 0;
-          const res = minimax(nb, depth - 1 + ext, alpha, beta, false, aiColor);
-          if (res.score > best.score) best = { ...res, fr: m.fr, fc: m.fc, tr: m.tr, tc: m.tc };
-          alpha = Math.max(alpha, best.score);
-          if (beta <= alpha) break;
-        }
-      } else {
-        best = { score: Infinity };
-        for (const m of moves) {
-          const nb = cloneBoard(bd);
-          nb[m.tr][m.tc] = nb[m.fr][m.fc]; nb[m.fr][m.fc] = null;
-          const oppInCheck = inCheck(nb, color === 'red' ? 'black' : 'red');
-          const ext = (oppInCheck && depth > 1) ? 1 : 0;
-          const res = minimax(nb, depth - 1 + ext, alpha, beta, true, aiColor);
-          if (res.score < best.score) best = { ...res, fr: m.fr, fc: m.fc, tr: m.tr, tc: m.tc };
-          beta = Math.min(beta, best.score);
-          if (beta <= alpha) break;
-        }
-      }
-      return best;
-    }
-
-    function getAIMove(b, aiColor, depth) {
-      const result = minimax(b, depth, -Infinity, Infinity, true, aiColor);
-      if (!result || result.fr === undefined) return null;
-      return { fr: result.fr, fc: result.fc, tr: result.tr, tc: result.tc };
-    }
-
-    function aiTurn() {
-      if (aiThinking || animating) return;
-      const aiColor = getAIcolor();
-      if (turn !== aiColor || !hasLegalMove(board, aiColor)) return;
-      aiThinking = true;
-      const ti = document.getElementById('turn-indicator');
-      ti.className = 'thinking';
-      ti.textContent = '🤔 AI思考中...';
-      setTimeout(() => {
-        if (turn !== aiColor || !hasLegalMove(board, aiColor)) { aiThinking = false; updateUI(); return; }
-        const move = getAIMove(board, aiColor, aiDepth);
-        aiThinking = false;
-        if (!move) { updateUI(); return; }
-        makeMove(move.fr, move.fc, move.tr, move.tc);
-      }, 80);
-    }
-
-    // ============================================================
-    //  Rendering (unchanged from original, with minor polish)
-    // ============================================================
-    let cellSize = 0, pad = 0, boardPixelW = 0, boardPixelH = 0;
-
-    function calcSize() {
-      const wrap = document.getElementById('board-wrap');
-      const rect = wrap.getBoundingClientRect();
-      const maxW = rect.width - 16, maxH = rect.height - 16;
-      const boardW = (COLS - 1), boardH = (ROWS - 1);
-      const ratio = boardW / boardH;
-      let w, h;
-      if (maxW / maxH > ratio) { h = maxH; w = h * ratio; } else { w = maxW; h = w / ratio; }
-      pad = Math.min(30, Math.min(w, h) * 0.08);
-      cellSize = (w - pad * 2) / boardW;
-      boardPixelW = w; boardPixelH = h;
-      canvas.width = Math.round(w) * devicePixelRatio;
-      canvas.height = Math.round(h) * devicePixelRatio;
-      canvas.style.width = Math.round(w) + 'px';
-      canvas.style.height = Math.round(h) + 'px';
-    }
-
-    function drawBoard() {
-      const W = canvas.width, H = canvas.height, dpr = devicePixelRatio;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      const scale = dpr;
-      const ox = (boardPixelW - pad * 2 - cellSize * (COLS - 1)) / 2 + pad;
-      const oy = (boardPixelH - pad * 2 - cellSize * (ROWS - 1)) / 2 + pad;
-      const cs = cellSize;
-      ctx.save();
-      ctx.scale(scale, scale);
-      ctx.translate(0, 0);
-      const bgGrad = ctx.createRadialGradient(boardPixelW / 2, boardPixelH / 2, 0, boardPixelW / 2, boardPixelH / 2, boardPixelW * 0.7);
-      bgGrad.addColorStop(0, '#d4a854'); bgGrad.addColorStop(0.5, '#c89a44'); bgGrad.addColorStop(1, '#a87a34');
-      ctx.fillStyle = bgGrad;
-      ctx.beginPath();
-      ctx.roundRect(0, 0, boardPixelW, boardPixelH, 8);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(139,105,20,0.08)';
-      const seeded = ((i) => (i * 16807) % 2147483647);
-      let seed = 12345;
-      for (let i = 0; i < 60; i++) { seed = seeded(seed); const x = (seed % boardPixelW * 1000 | 0) / 1000; seed = seeded(seed); const y = (seed % boardPixelH * 1000 | 0) / 1000; seed = seeded(seed); const s = 1 + (seed % 3); ctx.fillRect(x, y, s, s); }
-      ctx.strokeStyle = '#5a3d0c'; ctx.lineWidth = 2.5; ctx.strokeRect(ox, oy, cs * (COLS - 1), cs * (ROWS - 1));
-      ctx.strokeStyle = '#4a2d0c'; ctx.lineWidth = 1;
-      for (let r = 0; r < ROWS; r++) { ctx.beginPath(); ctx.moveTo(ox, oy + r * cs); ctx.lineTo(ox + (COLS - 1) * cs, oy + r * cs); ctx.stroke(); }
-      for (let c = 0; c < COLS; c++) {
-        if (c === 0 || c === COLS - 1) { ctx.beginPath(); ctx.moveTo(ox + c * cs, oy); ctx.lineTo(ox + c * cs, oy + (ROWS - 1) * cs); ctx.stroke(); }
-        else { ctx.beginPath(); ctx.moveTo(ox + c * cs, oy); ctx.lineTo(ox + c * cs, oy + 4 * cs); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ox + c * cs, oy + 5 * cs); ctx.lineTo(ox + c * cs, oy + 9 * cs); ctx.stroke(); }
-      }
-      ctx.strokeStyle = '#4a2d0c'; ctx.lineWidth = 1;
-      for (const side of ['red', 'black']) {
-        const pa = PALACE[side]; const y1 = side === 'black' ? 0 : 5; const y2 = side === 'black' ? 2 : 7;
-        ctx.beginPath(); ctx.moveTo(ox + pa.c1 * cs, oy + y1 * cs); ctx.lineTo(ox + pa.c2 * cs, oy + y2 * cs); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox + pa.c2 * cs, oy + y1 * cs); ctx.lineTo(ox + pa.c1 * cs, oy + y2 * cs); ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(90,61,12,0.35)'; ctx.font = `${cs * 0.6}px "KaiTi","STKaiti","Microsoft YaHei",serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('楚 河', ox + 2 * cs, oy + 4.5 * cs); ctx.fillText('汉 界', ox + 6 * cs, oy + 4.5 * cs);
-      ctx.strokeStyle = '#5a3d0c'; ctx.lineWidth = 1; const tickLen = cs * 0.12; const tickOff = cs * 0.16;
-      const tickPositions = [...[0, 1, 2, 3, 5, 6, 7, 8].map(c => ({ x: ox + c * cs, y: oy, dx: 0, dy: -tickLen, offX: 0, offY: -tickOff })), ...[0, 1, 2, 3, 5, 6, 7, 8].map(c => ({ x: ox + c * cs, y: oy + 9 * cs, dx: 0, dy: tickLen, offX: 0, offY: tickOff })), ...[0, 1, 2, 3, 5, 6, 7, 8, 9].filter(r => r !== 4).map(r => ({ x: ox, y: oy + r * cs, dx: -tickLen, dy: 0, offX: -tickOff, offY: 0 })), ...[0, 1, 2, 3, 5, 6, 7, 8, 9].filter(r => r !== 4).map(r => ({ x: ox + 8 * cs, y: oy + r * cs, dx: tickLen, dy: 0, offX: tickOff, offY: 0 }))];
-      for (const t of tickPositions) { ctx.beginPath(); ctx.moveTo(t.x + t.offX, t.y + t.offY); ctx.lineTo(t.x + t.offX + t.dx, t.y + t.offY + t.dy); ctx.stroke(); }
-      ctx.restore();
-    }
-
-    function pieceToCanvas(r, c) {
-      const dpr = devicePixelRatio;
-      const ox = ((boardPixelW - pad * 2 - cellSize * (COLS - 1)) / 2 + pad) * dpr;
-      const oy = ((boardPixelH - pad * 2 - cellSize * (ROWS - 1)) / 2 + pad) * dpr;
-      const cs = cellSize * dpr;
-      return { x: ox + c * cs, y: oy + r * cs };
-    }
-
-    function drawBoardAndPieces() {
-      drawBoard();
-      const dpr = devicePixelRatio, cs = cellSize * dpr;
-      const r = cs * 0.42;
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      for (const m of validMoves) {
-        const { x, y } = pieceToCanvas(m.r, m.c);
-        const b = board[m.r][m.c];
-        if (b) { ctx.strokeStyle = 'rgba(255,50,50,0.6)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x / dpr, y / dpr, r / dpr + 3, 0, Math.PI * 2); ctx.stroke(); }
-        else { ctx.fillStyle = 'rgba(255,50,50,0.5)'; ctx.beginPath(); ctx.arc(x / dpr, y / dpr, cs * 0.1 / dpr, 0, Math.PI * 2); ctx.fill(); }
-      }
-      ctx.restore();
-      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        const p = board[r][c];
-        if (!p) continue;
-        if (animating && r === animating.toR && c === animating.toC) continue;
-        const { x, y } = pieceToCanvas(r, c);
-        drawPieceAt(x, y, p, selected && selected.r === r && selected.c === c, cs);
-      }
-      if (animating) {
-        const { fromR, fromC, toR, toC, piece, progress } = animating;
-        const { x: fx, y: fy } = pieceToCanvas(fromR, fromC);
-        const { x: tx, y: ty } = pieceToCanvas(toR, toC);
-        const t = 1 - Math.pow(1 - progress, 3);
-        const cx = fx + (tx - fx) * t, cy = fy + (ty - fy) * t;
-        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(cx / dpr + 2, cy / dpr + cs * 0.4 / dpr, cs * 0.32 / dpr, cs * 0.12 / dpr, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        drawPieceAt(cx, cy, piece, false, cs);
-      }
-    }
-
-    function drawPieceAt(cx, cy, piece, selected, cs) {
-      const dpr = devicePixelRatio; const r = cs * 0.4; const isRed = piece.color === 'red';
-      ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const x = cx / dpr, y = cy / dpr, radius = r / dpr;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x + 2, y + radius * 0.85, radius * 0.9, radius * 0.15, 0, 0, Math.PI * 2); ctx.fill();
-      if (selected) { ctx.shadowColor = isRed ? 'rgba(255,60,60,0.6)' : 'rgba(100,100,255,0.5)'; ctx.shadowBlur = radius * 0.5; }
-      const grad = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.1, x, y, radius);
-      if (isRed) { grad.addColorStop(0, '#f5e6d0'); grad.addColorStop(0.5, '#e8d5b8'); grad.addColorStop(1, '#c8a878'); }
-      else { grad.addColorStop(0, '#e8dcc0'); grad.addColorStop(0.5, '#d4c8a8'); grad.addColorStop(1, '#b0a080'); }
-      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = isRed ? '#b83020' : '#333'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = isRed ? 'rgba(184,48,32,0.3)' : 'rgba(50,50,50,0.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, radius * 0.85, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(x - radius * 0.2, y - radius * 0.25, radius * 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      const name = NAMES[piece.color][piece.type]; ctx.fillStyle = isRed ? '#b83020' : '#222';
-      ctx.font = `bold ${radius * 1.2}px "KaiTi","STKaiti","Noto Sans SC","Microsoft YaHei",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(name, x, y + 1);
-      ctx.restore();
-    }
-
-    // ============================================================
-    //  Interaction
-    // ============================================================
-    function canvasToBoard(canvasX, canvasY) {
-      const dpr = devicePixelRatio;
-      const ox = ((boardPixelW - pad * 2 - cellSize * (COLS - 1)) / 2 + pad) * dpr;
-      const oy = ((boardPixelH - pad * 2 - cellSize * (ROWS - 1)) / 2 + pad) * dpr;
-      const cs = cellSize * dpr;
-      const c = Math.round((canvasX - ox) / cs), r = Math.round((canvasY - oy) / cs);
-      if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-        const cx = ox + c * cs, cy = oy + r * cs;
-        const dist = Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2);
-        if (dist < cs * 0.55) return { r, c };
-      }
-      return null;
-    }
-
-    function handleClick(e) {
-      if (animating || aiThinking) return;
-      if (!isPVP() && isAI(turn)) return;
-      const rect = canvas.getBoundingClientRect();
-      const ex = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-      const ey = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
-      const x = (ex - rect.left) * devicePixelRatio * canvas.width / (canvas.clientWidth * devicePixelRatio);
-      const y = (ey - rect.top) * devicePixelRatio * canvas.height / (canvas.clientHeight * devicePixelRatio);
-      const pos = canvasToBoard(x, y);
-      if (!pos) return;
-      const { r, c } = pos;
-      const clicked = board[r][c];
-      if (document.getElementById('overlay').classList.contains('active')) return;
-      if (selected) {
-        const isValid = validMoves.some(m => m.r === r && m.c === c);
-        if (isValid) { const from = selected; makeMove(from.r, from.c, r, c); selected = null; validMoves = []; render(); return; }
-        if (clicked && clicked.color === turn) { selected = pos; validMoves = getLegalMoves(board, r, c); render(); return; }
-        selected = null; validMoves = []; render();
-      } else {
-        if (clicked && clicked.color === turn) { selected = pos; validMoves = getLegalMoves(board, r, c); render(); }
-      }
-    }
-
-    // ============================================================
-    //  Game Logic
-    // ============================================================
-    function makeMove(fr, fc, tr, tc) {
-      const piece = board[fr][fc];
-      const taken = board[tr][tc];
-      moveHistory.push({ fr, fc, tr, tc, piece: { ...piece }, captured: taken ? { ...taken } : null });
-      animating = { fromR: fr, fromC: fc, toR: tr, toC: tc, piece, progress: 0, startTime: performance.now(), duration: 200 };
-      if (taken) captured[piece.color].push(taken);
-      board[tr][tc] = piece; board[fr][fc] = null;
-      const opp = turn === 'red' ? 'black' : 'red'; turn = opp;
-      updateUI();
-      setTimeout(() => {
-        const inCh = inCheck(board, turn); const hasLegal = hasLegalMove(board, turn);
-        if (!hasLegal) { const winner = turn === 'red' ? 'black' : 'red'; showGameOver(winner, inCh ? '将杀' : '困毙'); }
-        else if (inCh) updateUI(true);
-      }, 50);
-    }
-
-    function undoMove() {
-      if (moveHistory.length === 0 || animating || aiThinking) return;
-      // In AI mode, undo 2 moves (AI + player)
-      const steps = isPVP() ? 1 : 2;
-      for (let i = 0; i < steps && moveHistory.length > 0; i++) {
-        const last = moveHistory.pop();
-        board[last.fr][last.fc] = last.piece;
-        board[last.tr][last.tc] = last.captured;
-        if (last.captured) captured[last.piece.color].pop();
-        turn = turn === 'red' ? 'black' : 'red';
-        const hp = document.getElementById('history-panel');
-        if (hp.lastChild) hp.removeChild(hp.lastChild);
-      }
-      selected = null; validMoves = [];
-      updateUI(); render();
-    }
-
-    function updateUI(check) {
-      const ti = document.getElementById('turn-indicator');
-      const p1 = document.getElementById('p1-name'), p2 = document.getElementById('p2-name');
-      const aiColor = getAIcolor();
-      if (turn === 'red') { ti.className = 'red'; ti.textContent = '红方走棋'; p1.className = 'name' + (isAI('red') ? ' ai-label' : '') + ' active-red'; p2.className = 'name' + (isAI('black') ? ' ai-label' : '') + ' inactive'; }
-      else { ti.className = 'black'; ti.textContent = '黑方走棋'; p1.className = 'name' + (isAI('red') ? ' ai-label' : '') + ' inactive'; p2.className = 'name' + (isAI('black') ? ' ai-label' : '') + ' active-black'; }
-      if (check) { ti.textContent += ' (将军!)'; ti.style.animation = 'checkPulse 0.5s ease 3'; setTimeout(() => ti.style.animation = '', 1500); }
-      const p1c = document.getElementById('p1-captured'); const p2c = document.getElementById('p2-captured');
-      p1c.innerHTML = captured.red.map(p => `<span>${NAMES.black[p.type]}</span>`).join('');
-      p2c.innerHTML = captured.black.map(p => `<span>${NAMES.red[p.type]}</span>`).join('');
-      const hp = document.getElementById('history-panel');
-      if (moveHistory.length > 0) {
-        const last = moveHistory[moveHistory.length - 1]; const p = last.piece; const name = NAMES[p.color][p.type];
-        const fromCol = '９８７６５４３２１'[last.fc]; const fromRow = last.fr + 1; const toCol = '９８７６５４３２１'[last.tc]; const toRow = last.tr + 1;
-        const cap = last.captured ? `吃${NAMES[last.captured.color][last.captured.type]}` : '';
-        const entry = document.createElement('span'); entry.className = 'move-entry';
-        entry.textContent = `${name}${fromCol}${fromRow}→${toCol}${toRow}${cap}`;
-        hp.appendChild(entry); hp.scrollTop = hp.scrollHeight;
-      }
-      document.getElementById('overlay').classList.remove('active');
-    }
-
-    function showGameOver(winner, reason) {
-      const overlay = document.getElementById('overlay');
-      const rt = document.getElementById('result-text');
-      const rs = document.getElementById('result-sub');
-      const ti = document.getElementById('turn-indicator');
-      const aiColor = getAIcolor();
-      const humanWin = !isPVP() && winner !== aiColor;
-      if (winner === 'red') { rt.textContent = '🔴 红方胜'; rt.className = 'result red-win'; ti.textContent = '红方获胜!'; }
-      else { rt.textContent = '⚫ 黑方胜'; rt.className = 'result black-win'; ti.textContent = '黑方获胜!'; }
-      if (!isPVP()) { rt.textContent = humanWin ? '🎉 你赢了!' : '😵 你输了...'; rt.className = humanWin ? 'win' : 'lose'; ti.textContent = humanWin ? '你获胜!' : 'AI获胜...'; }
-      ti.className = 'over';
-      rs.textContent = reason === '将杀' ? '将杀 — 对方无路可逃' : '困毙 — 无子可走';
-      overlay.classList.add('active');
-    }
-
-    function onModeChange() {
-      gameMode = document.getElementById('mode-select').value;
-      newGame();
-    }
-
-    function newGame() {
-      board = initBoard(); turn = 'red'; selected = null; validMoves = []; moveHistory = []; captured = { red: [], black: [] }; animating = null; aiThinking = false;
-      aiDepth = (parseInt(document.getElementById('difficulty-select').value) || 2) + 1;
-      document.getElementById('history-panel').innerHTML = '';
-      document.getElementById('overlay').classList.remove('active');
-      updateUI();
-      render();
-      // If AI goes first (pve-black), trigger AI after a moment
-      if (!isPVP() && isAI(turn)) setTimeout(aiTurn, 300);
-    }
-
-    // ============================================================
-    //  Render Loop
-    // ============================================================
-    let animFrameId = null;
-    function render() { calcSize(); ctx.clearRect(0, 0, canvas.width, canvas.height); drawBoardAndPieces(); }
-    function loop(time) {
-      if (animating) { const elapsed = time - animating.startTime; animating.progress = Math.min(1, elapsed / animating.duration); render(); if (animating.progress >= 1) { animating = null; render(); if (!isPVP() && !aiThinking && !document.getElementById('overlay').classList.contains('active') && isAI(turn) && hasLegalMove(board, turn)) aiTurn(); } }
-      animFrameId = requestAnimationFrame(loop);
-    }
-
-    // ============================================================
-    //  Init
-    // ============================================================
-    function init() {
-      canvas = document.getElementById('game-canvas'); ctx = canvas.getContext('2d');
-      if (!CanvasRenderingContext2D.prototype.roundRect) { CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) { if (r > w / 2) r = w / 2; if (r > h / 2) r = h / 2; this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r); this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); return this; }; }
-      canvas.addEventListener('mousedown', handleClick); canvas.addEventListener('touchstart', handleClick, { passive: true });
-      newGame(); loop();
-    }
-    let resizeTimer;
-    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!animating) render(); }, 100); });
-    const style = document.createElement('style');
-    style.textContent = `@keyframes checkPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}`;
-    document.head.appendChild(style);
-    document.addEventListener('DOMContentLoaded', init);
-  </script>
+  <script type="module" src="./src/main.js"></script>
 </body>
 
 </html>

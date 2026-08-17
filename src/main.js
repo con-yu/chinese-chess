@@ -1,17 +1,24 @@
 // ============================================================
-//  主流程 — 屏幕状态 / 输入 / 对战编排 / AI / 网络
+//  主流程 — Web 双人在线对战（在线大厅 + 邀请对战）
+//  大厅交互（登录/玩家列表/邀请）由 HTML 负责；
+//  对局棋盘/弹窗由 Canvas 渲染层负责。
 // ============================================================
-const Chess = require('./engine/chess.js');
-const Renderer = require('./render/renderer.js');
-const Network = require('./net/network.js');
-const CONFIG = require('./config.js');
+import * as Chess from './engine/chess.js';
+import * as Renderer from './render/renderer.js';
+import { Network } from './net/network.js';
 
 let canvas, ctx;
-let W = 0, H = 0, dpr = 2;
+let W = 0, H = 0, dpr = 1;
+
+// 大厅前端状态
+let myId = null;
+let myName = '';
+let lobbyPlayers = [];        // [{id,name,status}]
+let pendingInviteTo = null;   // 我正邀请的玩家 id
+let invitedFrom = null;       // 谁在邀请我 {id,name}
 
 const game = {
-  screen: 'home',                 // 'home' | 'playing' | 'overlay'
-  mode: null,                     // 'online' | 'local' | 'ai'
+  screen: 'home',              // 'home'(大厅) | 'playing' | 'overlay'
   board: Chess.initBoard(),
   turn: 'red',
   selected: null,
@@ -21,11 +28,8 @@ const game = {
   players: { red: { name: '红方' }, black: { name: '黑方' } },
   myColor: 'red',
   animating: null,
-  gameOver: null,                 // {winner, reason}
-  aiThinking: false,
-  aiDepth: 3,
-  online: { connected: false, started: false, waiting: false, opponentName: '' },
-  _myName: '玩家',
+  gameOver: null,              // {winner, reason}
+  online: { connected: false, started: false },
   _layout: null,
   _overlayBtn: null,
   _check: false
@@ -33,18 +37,32 @@ const game = {
 
 // ---------------------- 初始化 ----------------------
 function init() {
-  canvas = wx.createCanvas();
+  canvas = document.getElementById('game-canvas');
   ctx = canvas.getContext('2d');
-  const info = wx.getSystemInfoSync();
-  W = info.screenWidth;
-  H = info.screenHeight;
-  dpr = info.pixelRatio || 2;
+  resize();
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('mousedown', onPointer);
+  canvas.addEventListener('touchstart', onPointer, { passive: false });
+
+  // 大厅事件
+  document.getElementById('login-btn').addEventListener('click', onLogin);
+  document.getElementById('input-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') onLogin(); });
+  document.getElementById('logout-btn').addEventListener('click', backToHome);
+  document.getElementById('invite-cancel-btn').addEventListener('click', cancelInvite);
+  document.getElementById('player-list').addEventListener('click', onPlayerClick);
+
+  registerNetwork();
+  requestAnimationFrame(loop);
+}
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
-  try { wx.setKeepScreenOn({ keepScreenOn: true }); } catch (e) {}
-  registerNetwork();
-  wx.onTouchStart(onTouch);
-  requestAnimationFrame(loop);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
 }
 
 // ---------------------- 渲染循环 ----------------------
@@ -68,7 +86,7 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// 一步棋落定后的处理：判定胜负 / 触发 AI
+// 一步棋落定后的处理：判定胜负
 function afterSettled() {
   if (game.gameOver) return;
   const inCh = Chess.inCheck(game.board, game.turn);
@@ -79,58 +97,177 @@ function afterSettled() {
     return;
   }
   game._check = inCh;
-  if (game.mode === 'ai') scheduleAI();
+}
+
+// ---------------------- 登录 / 大厅 ----------------------
+function onLogin() {
+  const nameEl = document.getElementById('input-name');
+  const name = (nameEl.value || '').trim() || '玩家';
+  myName = name;
+  showToast('连接中...');
+  Network.connect(name);
+}
+
+function showLobby() {
+  document.getElementById('login-panel').style.display = 'none';
+  document.getElementById('lobby-panel').style.display = 'flex';
+  document.getElementById('me-avatar').textContent = firstChar(myName);
+  document.getElementById('me-name').textContent = myName;
+  try { localStorage.setItem('cc_name', myName); } catch (e) {}
+}
+
+function renderPlayerList() {
+  const list = document.getElementById('player-list');
+  const count = document.getElementById('online-count');
+  count.textContent = lobbyPlayers.length;
+  if (lobbyPlayers.length === 0) {
+    list.innerHTML = '<div class="empty-tip">暂无其他在线玩家</div>';
+    return;
+  }
+  list.innerHTML = lobbyPlayers.map(p => {
+    const avatar = escapeHtml(firstChar(p.name));
+    const nm = escapeHtml(p.name);
+    return `<div class="player-item" data-id="${p.id}">
+      <div class="avatar">${avatar}</div>
+      <div class="nm">${nm}</div>
+      <div class="status">在线</div>
+    </div>`;
+  }).join('');
+}
+
+function onPlayerClick(e) {
+  const item = e.target.closest('.player-item');
+  if (!item) return;
+  if (pendingInviteTo) { showToast('请先取消当前邀请'); return; }
+  const id = parseInt(item.dataset.id, 10);
+  const p = lobbyPlayers.find(x => x.id === id);
+  if (!p) return;
+  // 弹确认
+  openModal(
+    `邀请对战`,
+    `确定要向 <b>${escapeHtml(p.name)}</b> 发起对局邀请吗？`,
+    [
+      { text: '邀请', ok: true, fn: () => { sendInvite(p); } },
+      { text: '取消', ok: false }
+    ]
+  );
+}
+
+function sendInvite(p) {
+  pendingInviteTo = p.id;
+  Network.sendInvite(p.id);
+  const bar = document.getElementById('invite-pending');
+  document.getElementById('invite-pending-text').textContent = `正在邀请 ${p.name}...`;
+  bar.style.display = 'flex';
+}
+
+function cancelInvite() {
+  if (pendingInviteTo != null) {
+    Network.sendDecline(pendingInviteTo);
+    clearPendingInvite();
+    showToast('已取消邀请');
+  }
+}
+
+function clearPendingInvite() {
+  pendingInviteTo = null;
+  document.getElementById('invite-pending').style.display = 'none';
+}
+
+// 收到邀请
+function onInvited(from) {
+  invitedFrom = from;
+  openModal(
+    `对战邀请`,
+    `<b>${escapeHtml(from.name)}</b> 邀请你进行一局中国象棋`,
+    [
+      { text: '接受', ok: true, fn: () => { Network.sendAccept(from.id); invitedFrom = null; } },
+      { text: '拒绝', ok: false, fn: () => { Network.sendDecline(from.id); invitedFrom = null; } }
+    ]
+  );
+}
+
+// ---------------------- 模态弹窗 ----------------------
+function openModal(title, descHtml, buttons) {
+  document.getElementById('modal-title').innerHTML = title;
+  document.getElementById('modal-desc').innerHTML = descHtml;
+  const btnsEl = document.getElementById('modal-btns');
+  btnsEl.innerHTML = '';
+  for (const b of buttons) {
+    const btn = document.createElement('button');
+    btn.className = b.ok ? 'ok' : 'cancel';
+    btn.textContent = b.text;
+    btn.addEventListener('click', () => {
+      closeModal();
+      if (b.fn) b.fn();
+    });
+    btnsEl.appendChild(btn);
+  }
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+// ---------------------- 进入对局 ----------------------
+function beginGame(color, opponentName) {
+  game.board = Chess.initBoard();
+  game.turn = 'red';
+  game.selected = null; game.validMoves = []; game.moveHistory = [];
+  game.captured = { red: [], black: [] };
+  game.animating = null; game.gameOver = null;
+  game.myColor = color;
+  game.online = { connected: true, started: true };
+  game.players = color === 'red'
+    ? { red: { name: myName }, black: { name: opponentName } }
+    : { red: { name: opponentName }, black: { name: myName } };
+  game.screen = 'playing';
+  // 隐藏大厅
+  document.getElementById('lobby').style.display = 'none';
 }
 
 // ---------------------- 输入 ----------------------
-function onTouch(e) {
-  const t = e.touches && e.touches[0];
-  if (!t) return;
-  handleTouch(t.clientX, t.clientY);
+function onPointer(e) {
+  e.preventDefault();
+  let x, y;
+  if (e.touches && e.touches.length > 0) {
+    x = e.touches[0].clientX;
+    y = e.touches[0].clientY;
+  } else {
+    x = e.clientX;
+    y = e.clientY;
+  }
+  handleTouch(x, y);
 }
 
 function inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
 
 function handleTouch(x, y) {
-  if (game.screen === 'home') return handleHomeTouch(x, y);
   if (game.screen === 'overlay') return handleOverlayTouch(x, y);
-  // playing
+  if (game.screen === 'home') return; // 大厅交互在 HTML
   const layout = game._layout;
   if (layout && layout.headerBtns) {
     for (const b of layout.headerBtns) {
       if (b._rect && inRect(x, y, b._rect)) { handleHeaderButton(b.id); return; }
     }
   }
-  if (game.gameOver || game.animating || game.aiThinking) return;
-  if (game.mode === 'online' && (!game.online.started || game.online.waiting)) return;
-  if (game.mode === 'online' && game.turn !== game.myColor) return;
-  if (game.mode === 'ai' && game.turn === 'black') return; // AI 回合，忽略点击
+  if (game.gameOver || game.animating) return;
+  if (!game.online.started) return;
+  if (game.turn !== game.myColor) return; // 不是我的回合，忽略点击
   const pos = Renderer.hitTestCell(layout, x, y);
   if (pos) handleBoardTouch(pos.r, pos.c);
 }
 
-function handleHomeTouch(x, y) {
-  const layout = game._layout;
-  if (!layout || !layout.buttons) return;
-  for (const b of layout.buttons) {
-    if (inRect(x, y, b)) { onHomeButton(b.id); return; }
-  }
-}
-
-function onHomeButton(id) {
-  if (id === 'online') startOnlineFlow();
-  else if (id === 'local') newGame('local');
-  else if (id === 'ai') startAIFlow();
+function handleHeaderButton(id) {
+  if (id === 'back') backToHome();
+  else if (id === 'new') { /* 在线对局无重开，需回大厅重新邀约 */ }
 }
 
 function handleOverlayTouch(x, y) {
-  if (game._overlayBtn && inRect(x, y, game._overlayBtn)) overlayAction();
-}
-
-function handleHeaderButton(id) {
-  if (id === 'back') backToHome();
-  else if (id === 'undo') undo();
-  else if (id === 'new') newGame(game.mode);
+  if (game._overlayBtn && inRect(x, y, game._overlayBtn)) {
+    backToHome();
+  }
 }
 
 function handleBoardTouch(r, c) {
@@ -162,108 +299,35 @@ function doMove(fr, fc, tr, tc, remote) {
   Chess.applyMove(game.board, fr, fc, tr, tc);
   game.turn = game.turn === 'red' ? 'black' : 'red';
   game.selected = null; game.validMoves = [];
-  if (!remote && game.mode === 'online') Network.sendMove({ r: fr, c: fc }, { r: tr, c: tc });
+  if (!remote) Network.sendMove({ r: fr, c: fc }, { r: tr, c: tc });
 }
 
-// ---------------------- 模式启动 ----------------------
-function newGame(mode) {
-  game.mode = mode;
-  game.board = Chess.initBoard();
-  game.turn = 'red';
-  game.selected = null; game.validMoves = []; game.moveHistory = [];
-  game.captured = { red: [], black: [] };
-  game.animating = null; game.gameOver = null; game.aiThinking = false;
-  game.online = { connected: false, started: false, waiting: false, opponentName: '' };
-  game._check = false;
-  if (mode === 'local') game.players = { red: { name: '红方' }, black: { name: '黑方' } };
-  else if (mode === 'ai') game.players = { red: { name: '你 (红)' }, black: { name: '电脑 (黑)' } };
-  game.screen = 'playing';
-}
-
-function startAIFlow() {
-  wx.showActionSheet({
-    itemList: ['初级', '中级', '高级', '大师'],
-    success: (res) => {
-      const depths = [2, 3, 4, 4];
-      game.aiDepth = depths[res.tapIndex] != null ? depths[res.tapIndex] : 3;
-      newGame('ai');
-    }
-  });
-}
-
-function startOnlineFlow() {
-  const defRoom = randomRoom();
-  const defName = savedName();
-  wx.showModal({
-    title: '加入房间', editable: true, placeholderText: '房间号（双方需一致）', content: defRoom,
-    success: (res) => {
-      if (!res.confirm) return;
-      const room = (res.content || '').trim() || defRoom;
-      wx.showModal({
-        title: '你的昵称', editable: true, placeholderText: '昵称', content: defName,
-        success: (res2) => {
-          if (!res2.confirm) return;
-          const name = (res2.content || '').trim() || '玩家';
-          try { wx.setStorageSync(CONFIG.STORAGE_KEY, name); } catch (e) {}
-          beginOnline(room, name);
-        }
-      });
-    }
-  });
-}
-
-function beginOnline(room, name) {
-  game.mode = 'online';
-  game._myName = name;
-  game.board = Chess.initBoard();
-  game.turn = 'red';
-  game.selected = null; game.validMoves = []; game.moveHistory = [];
-  game.captured = { red: [], black: [] };
-  game.animating = null; game.gameOver = null; game.aiThinking = false;
-  game.online = { connected: false, started: false, waiting: true, opponentName: '' };
-  game.players = { red: { name: name }, black: { name: '???' } };
-  game.screen = 'playing';
-  wx.showLoading({ title: '连接中...' });
-  Network.connect(room, name);
-}
-
-// ---------------------- AI ----------------------
-function scheduleAI() {
-  if (game.mode !== 'ai' || game.gameOver || game.animating) return;
-  const aiColor = 'black';
-  if (game.turn !== aiColor) return;
-  game.aiThinking = true;
-  // 先渲染一帧「思考中」，再开始计算（计算会阻塞主线程）
-  setTimeout(() => {
-    if (game.mode !== 'ai' || game.gameOver || game.turn !== aiColor) { game.aiThinking = false; return; }
-    setTimeout(() => {
-      if (game.mode !== 'ai' || game.gameOver || game.turn !== aiColor) { game.aiThinking = false; return; }
-      const mv = Chess.getAIMove(game.board, aiColor, game.aiDepth);
-      game.aiThinking = false;
-      if (mv) doMove(mv.fr, mv.fc, mv.tr, mv.tc, false);
-    }, 30);
-  }, 30);
-}
-
-// ---------------------- 悔棋 / 返回 ----------------------
-function undo() {
-  if (game.mode === 'online') return;
-  if (game.moveHistory.length === 0 || game.animating || game.aiThinking) return;
-  const steps = game.mode === 'local' ? 1 : 2;
-  for (let i = 0; i < steps && game.moveHistory.length > 0; i++) {
-    const last = game.moveHistory.pop();
-    game.board[last.fr][last.fc] = last.piece;
-    game.board[last.tr][last.tc] = last.captured;
-    if (last.captured) game.captured[last.piece.color].pop();
-    game.turn = game.turn === 'red' ? 'black' : 'red';
-  }
-  game.selected = null; game.validMoves = []; game.gameOver = null; game._check = false;
-}
-
+// ---------------------- 返回大厅 ----------------------
 function backToHome() {
-  if (game.mode === 'online') Network.close();
+  Network.close();
+  resetState();
+  showHomeScreen();
+}
+
+function resetState() {
   game.screen = 'home';
+  game.board = Chess.initBoard();
+  game.selected = null; game.validMoves = []; game.moveHistory = [];
+  game.captured = { red: [], black: [] };
   game.animating = null; game.gameOver = null;
+  game.online = { connected: false, started: false };
+  game._check = false;
+  myId = null;
+  lobbyPlayers = [];
+  pendingInviteTo = null;
+  invitedFrom = null;
+  clearPendingInvite();
+}
+
+function showHomeScreen() {
+  document.getElementById('lobby').style.display = 'flex';
+  document.getElementById('login-panel').style.display = 'flex';
+  document.getElementById('lobby-panel').style.display = 'none';
 }
 
 function setGameOver(winner, reason) {
@@ -271,53 +335,104 @@ function setGameOver(winner, reason) {
   game.screen = 'overlay';
 }
 
-function overlayAction() {
-  if (game.mode === 'online') backToHome();
-  else newGame(game.mode);
+// ---------------------- Toast / 工具 ----------------------
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function firstChar(name) {
+  return (name || '?').trim().charAt(0).toUpperCase() || '?';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function defaultName() {
+  try { return localStorage.getItem('cc_name') || ('玩家' + Math.floor(Math.random() * 1000)); } catch (e) { return '玩家'; }
 }
 
 // ---------------------- 网络事件 ----------------------
 function registerNetwork() {
   Network.on('open', () => { game.online.connected = true; });
-  Network.on('waiting', () => {
-    game.online.waiting = true;
-    wx.showToast({ title: '等待对手加入...', icon: 'none' });
+
+  Network.on('loginOk', (d) => {
+    myId = d.me.id;
+    showLobby();
   });
+
+  Network.on('onlineList', (d) => {
+    lobbyPlayers = (d.players || []).filter(p => p.status === 'lobby');
+    renderPlayerList();
+  });
+
+  Network.on('playerOnline', (d) => {
+    if (d.player.status !== 'lobby') return;
+    if (!lobbyPlayers.find(x => x.id === d.player.id)) {
+      lobbyPlayers.push(d.player);
+      renderPlayerList();
+    }
+  });
+
+  Network.on('playerOffline', (d) => {
+    lobbyPlayers = lobbyPlayers.filter(p => p.id !== d.id);
+    renderPlayerList();
+  });
+
+  Network.on('invited', (d) => {
+    onInvited(d.from);
+  });
+
+  Network.on('inviteDeclined', (d) => {
+    clearPendingInvite();
+    showToast(`${d.from.name} 拒绝了你的邀请`);
+  });
+
+  Network.on('opponentBusy', () => {
+    clearPendingInvite();
+    showToast('对方正在对局或已被邀请');
+  });
+
   Network.on('start', (d) => {
-    wx.hideLoading();
-    game.online.started = true; game.online.waiting = false;
-    game.myColor = d.color;
-    const myName = game._myName;
-    const oppName = (d.opponent && d.opponent.name) || '对手';
-    if (d.color === 'red') game.players = { red: { name: myName }, black: { name: oppName } };
-    else game.players = { red: { name: oppName }, black: { name: myName } };
-    game.turn = 'red';
-    wx.showToast({ title: '对局开始!', icon: 'success' });
+    beginGame(d.color, (d.opponent && d.opponent.name) || '对手');
+    showToast('对局开始!');
   });
+
   Network.on('opponentMove', (d) => {
     if (game.animating) { setTimeout(() => doMove(d.from.r, d.from.c, d.to.r, d.to.c, true), 240); }
     else doMove(d.from.r, d.from.c, d.to.r, d.to.c, true);
   });
+
   Network.on('opponentLeft', () => {
-    wx.showToast({ title: '对手已离开', icon: 'none' });
+    showToast('对手已离开');
     Network.close();
     setTimeout(backToHome, 1300);
   });
+
   Network.on('serverError', (d) => {
-    wx.showToast({ title: (d && d.msg) || '服务器错误', icon: 'none' });
+    showToast((d && d.msg) || '服务器错误');
   });
+
   Network.on('error', () => {
-    wx.hideLoading();
-    wx.showToast({ title: '网络连接失败', icon: 'none' });
+    showToast('网络连接失败，请确认服务器已启动');
+    resetState();
+    showHomeScreen();
   });
+
   Network.on('close', () => { game.online.connected = false; });
 }
 
-// ---------------------- 工具 ----------------------
-function randomRoom() { return (1000 + Math.floor(Math.random() * 9000)).toString(); }
-function savedName() {
-  try { return wx.getStorageSync(CONFIG.STORAGE_KEY) || ('玩家' + Math.floor(Math.random() * 1000)); }
-  catch (e) { return '玩家'; }
-}
+// 首次进入默认填充昵称
+(function () {
+  try {
+    document.getElementById('input-name').value = localStorage.getItem('cc_name') || '';
+  } catch (e) {}
+})();
 
 init();

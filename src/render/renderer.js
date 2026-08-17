@@ -1,11 +1,11 @@
 // ============================================================
 //  Canvas 渲染层 — 棋盘 / 棋子 / UI / 弹窗（全部 Canvas 绘制）
 //  坐标系使用「逻辑像素」，每帧通过 ctx.setTransform(dpr,...) 缩放。
+//  首页交互（密码/昵称输入）由 HTML 浮层负责，本层仅绘制静态封面。
 // ============================================================
-const Chess = require('../engine/chess.js');
-const { NAMES, COLS, ROWS } = Chess;
+import { NAMES, COLS, ROWS } from '../engine/chess.js';
 
-const COLORS = {
+export const COLORS = {
   bgDeep: '#1a1410',
   bgPanel: '#241e18',
   gold: '#d4a854',
@@ -32,21 +32,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // ---------------------- 布局计算 ----------------------
-function computeLayout(screen, W, H) {
-  if (screen === 'home') {
-    const btnW = W * 0.66, btnH = Math.max(48, H * 0.075), gap = H * 0.025;
-    const startY = H * 0.42;
-    return {
-      title: { x: W / 2, y: H * 0.2 },
-      sub: { x: W / 2, y: H * 0.27 },
-      buttons: [
-        { id: 'online', label: '在线对战', x: W / 2 - btnW / 2, y: startY, w: btnW, h: btnH, primary: true },
-        { id: 'local', label: '本地双人', x: W / 2 - btnW / 2, y: startY + btnH + gap, w: btnW, h: btnH },
-        { id: 'ai', label: '人机对战', x: W / 2 - btnW / 2, y: startY + 2 * (btnH + gap), w: btnW, h: btnH }
-      ]
-    };
-  }
-  // playing / overlay
+function computeLayout(W, H) {
   const headerH = Math.max(46, H * 0.06);
   const playerH = Math.max(42, H * 0.055);
   const historyH = Math.max(40, H * 0.06);
@@ -70,12 +56,12 @@ function computeLayout(screen, W, H) {
   };
 }
 
-function cellCenter(layout, r, c) {
+export function cellCenter(layout, r, c) {
   return { x: layout.ox + c * layout.cell, y: layout.oy + r * layout.cell };
 }
 
 // 触摸坐标 -> 棋盘格；命中返回 {r,c}，否则 null
-function hitTestCell(layout, x, y) {
+export function hitTestCell(layout, x, y) {
   const c = Math.round((x - layout.ox) / layout.cell);
   const r = Math.round((y - layout.oy) / layout.cell);
   if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
@@ -94,73 +80,65 @@ function drawBackground(ctx, W, H) {
   ctx.fillRect(0, 0, W, H);
 }
 
-// ---------------------- 首页 ----------------------
-function renderHome(ctx, game, W, H, dpr) {
+// ---------------------- 首页（静态封面，交互在 HTML 浮层） ----------------------
+export function renderHome(ctx, game, W, H, dpr) {
   drawBackground(ctx, W, H);
-  const layout = computeLayout('home', W, H);
-
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // 标题
   ctx.fillStyle = COLORS.gold;
-  ctx.font = `bold ${Math.round(W * 0.12)}px "STKaiti","KaiTi",serif`;
+  ctx.font = `bold ${Math.round(W * 0.11)}px "STKaiti","KaiTi",serif`;
   ctx.shadowColor = 'rgba(212,168,84,0.4)';
   ctx.shadowBlur = 20;
-  ctx.fillText('中国象棋', layout.title.x, layout.title.y);
+  ctx.fillText('中国象棋', W / 2, H * 0.2);
   ctx.shadowBlur = 0;
   ctx.fillStyle = COLORS.textDim;
   ctx.font = `${Math.round(W * 0.04)}px sans-serif`;
-  ctx.fillText('双人在线对战', layout.sub.x, layout.sub.y);
-
-  // 按钮
-  for (const b of layout.buttons) drawButton(ctx, b, b.primary);
-  return layout;
-}
-
-function drawButton(ctx, b, primary) {
-  ctx.save();
-  const g = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
-  if (primary) { g.addColorStop(0, COLORS.gold); g.addColorStop(1, COLORS.goldDim); }
-  else { g.addColorStop(0, '#3a3026'); g.addColorStop(1, '#2a221a'); }
-  ctx.fillStyle = g;
-  roundRect(ctx, b.x, b.y, b.w, b.h, b.h * 0.18);
-  ctx.fill();
-  if (!primary) { ctx.strokeStyle = COLORS.goldDim; ctx.lineWidth = 1.5; ctx.stroke(); }
-  ctx.fillStyle = primary ? COLORS.bgDeep : COLORS.gold;
-  ctx.font = `bold ${Math.round(b.h * 0.4)}px sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
-  ctx.restore();
+  ctx.fillText('在线大厅 · 邀约好友实时对战', W / 2, H * 0.27);
 }
 
 // ---------------------- 对局界面 ----------------------
-function renderGame(ctx, game, W, H, dpr, inOverlay) {
+export function renderGame(ctx, game, W, H, dpr) {
   drawBackground(ctx, W, H);
-  const layout = computeLayout('playing', W, H);
+  const layout = computeLayout(W, H);
 
-  // 头部（返回头部按钮点击区域，供输入命中检测）
   layout.headerBtns = drawHeader(ctx, game, layout, W);
-  // 玩家信息栏
   drawPlayerBar(ctx, game, layout, W);
-  // 棋盘
   drawBoard(ctx, layout);
   drawBoardAndPieces(ctx, game, layout);
-  // 历史栏
   drawHistory(ctx, game, layout, W);
+
+  // 等待对手提示
+  if (game.online && game.online.waiting) {
+    drawWaiting(ctx, layout, W, H);
+  }
   return layout;
+}
+
+function drawWaiting(ctx, layout, W, H) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, layout.headerH + layout.playerH, W, layout.boardRect.h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = `bold ${Math.round(W * 0.05)}px "STKaiti","KaiTi",serif`;
+  ctx.shadowColor = 'rgba(212,168,84,0.5)'; ctx.shadowBlur = 12;
+  const cy = layout.headerH + layout.playerH + layout.boardRect.h / 2;
+  ctx.fillText('等待对手加入...', W / 2, cy - W * 0.03);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = COLORS.textDim;
+  ctx.font = `${Math.round(W * 0.033)}px sans-serif`;
+  ctx.fillText('房间密码已就绪，对手输入相同密码即可开始', W / 2, cy + W * 0.035);
 }
 
 function drawHeader(ctx, game, layout, W) {
   const buttons = headerButtons(game);
   let x = W - W * 0.02;
   ctx.textBaseline = 'middle';
-  // 标题
   ctx.fillStyle = COLORS.gold;
   ctx.font = `bold ${Math.round(layout.headerH * 0.42)}px "STKaiti","KaiTi",serif`;
   ctx.textAlign = 'left';
   ctx.fillText('象棋', W * 0.03, layout.headerH / 2);
 
-  // 右侧按钮（从右往左排）
   const bw = Math.max(54, W * 0.16), bh = layout.headerH * 0.6, gap = W * 0.015;
   for (let i = buttons.length - 1; i >= 0; i--) {
     const b = buttons[i];
@@ -173,8 +151,8 @@ function drawHeader(ctx, game, layout, W) {
 }
 
 function headerButtons(game) {
-  if (game.mode === 'online') return [{ id: 'back', label: '返回' }, { id: 'new', label: '新局' }];
-  return [{ id: 'back', label: '返回' }, { id: 'undo', label: '悔棋' }, { id: 'new', label: '新局' }];
+  // 在线对战：返回 + 新局（无悔棋，保证公平）
+  return [{ id: 'back', label: '返回' }, { id: 'new', label: '新局' }];
 }
 
 function drawSmallButton(ctx, rect, label) {
@@ -196,7 +174,6 @@ function drawPlayerBar(ctx, game, layout, W) {
   const redName = game.players.red.name;
   const blackName = game.players.black.name;
 
-  // 红方（左）
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.font = `${Math.round(h * 0.32)}px sans-serif`;
   if (game.turn === 'red') {
@@ -206,7 +183,6 @@ function drawPlayerBar(ctx, game, layout, W) {
   ctx.fillText('🔴 ' + redName, W * 0.03, y + h / 2);
   ctx.shadowBlur = 0;
 
-  // 黑方（右）
   ctx.textAlign = 'right';
   if (game.turn === 'black') {
     ctx.fillStyle = '#cfcfcf';
@@ -215,10 +191,8 @@ function drawPlayerBar(ctx, game, layout, W) {
   ctx.fillText(blackName + ' ⚫', W * 0.97, y + h / 2);
   ctx.shadowBlur = 0;
 
-  // 中间回合指示
   let indicator, bg, fg;
   if (game.gameOver) { indicator = '对局结束'; bg = 'rgba(212,168,84,0.15)'; fg = COLORS.gold; }
-  else if (game.aiThinking) { indicator = '🤔 思考中...'; bg = 'rgba(100,200,255,0.12)'; fg = '#64c8ff'; }
   else if (game.online && game.online.waiting) { indicator = '等待对手...'; bg = 'rgba(212,168,84,0.12)'; fg = COLORS.gold; }
   else if (game.turn === 'red') { indicator = '红方走棋' + (game._check ? ' (将军!)' : ''); bg = 'rgba(231,76,60,0.15)'; fg = '#e74c3c'; }
   else { indicator = '黑方走棋' + (game._check ? ' (将军!)' : ''); bg = 'rgba(140,140,140,0.18)'; fg = '#cfcfcf'; }
@@ -234,13 +208,11 @@ function drawPlayerBar(ctx, game, layout, W) {
 
 function drawBoard(ctx, layout) {
   const { boardX, boardY, boardW, boardH, ox, oy, cell } = layout;
-  // 棋盘底
   const g = ctx.createRadialGradient(boardX + boardW / 2, boardY + boardH / 2, 0, boardX + boardW / 2, boardY + boardH / 2, boardW * 0.7);
   g.addColorStop(0, COLORS.board1); g.addColorStop(0.5, COLORS.board2); g.addColorStop(1, COLORS.board3);
   ctx.fillStyle = g;
   roundRect(ctx, boardX, boardY, boardW, boardH, 8); ctx.fill();
 
-  // 木纹噪点
   ctx.fillStyle = 'rgba(139,105,20,0.08)';
   let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647);
   for (let i = 0; i < 50; i++) {
@@ -249,16 +221,13 @@ function drawBoard(ctx, layout) {
     ctx.fillRect(x, y, 1 + rnd() % 3, 1 + rnd() % 3);
   }
 
-  // 外框
   ctx.strokeStyle = '#5a3d0c'; ctx.lineWidth = 2.5;
   ctx.strokeRect(ox, oy, cell * (COLS - 1), cell * (ROWS - 1));
 
-  // 横线
   ctx.strokeStyle = COLORS.line; ctx.lineWidth = 1;
   for (let r = 0; r < ROWS; r++) {
     ctx.beginPath(); ctx.moveTo(ox, oy + r * cell); ctx.lineTo(ox + (COLS - 1) * cell, oy + r * cell); ctx.stroke();
   }
-  // 纵线（中间断开）
   for (let c = 0; c < COLS; c++) {
     if (c === 0 || c === COLS - 1) {
       ctx.beginPath(); ctx.moveTo(ox + c * cell, oy); ctx.lineTo(ox + c * cell, oy + (ROWS - 1) * cell); ctx.stroke();
@@ -267,20 +236,17 @@ function drawBoard(ctx, layout) {
       ctx.beginPath(); ctx.moveTo(ox + c * cell, oy + 5 * cell); ctx.lineTo(ox + c * cell, oy + 9 * cell); ctx.stroke();
     }
   }
-  // 九宫斜线
   for (const side of ['red', 'black']) {
     const c1 = 3, c2 = 5;
     const y1 = side === 'black' ? 0 : 7, y2 = side === 'black' ? 2 : 9;
     ctx.beginPath(); ctx.moveTo(ox + c1 * cell, oy + y1 * cell); ctx.lineTo(ox + c2 * cell, oy + y2 * cell); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(ox + c2 * cell, oy + y1 * cell); ctx.lineTo(ox + c1 * cell, oy + y2 * cell); ctx.stroke();
   }
-  // 楚河汉界
   ctx.fillStyle = 'rgba(90,61,12,0.35)';
   ctx.font = `${cell * 0.55}px "STKaiti","KaiTi","Microsoft YaHei",serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('楚 河', ox + 2 * cell, oy + 4.5 * cell);
   ctx.fillText('汉 界', ox + 6 * cell, oy + 4.5 * cell);
-  // 兵/炮位标记
   ctx.strokeStyle = COLORS.line; ctx.lineWidth = 1;
   const t = cell * 0.12, off = cell * 0.16;
   const marks = [];
@@ -291,7 +257,6 @@ function drawBoard(ctx, layout) {
 
 function drawBoardAndPieces(ctx, game, layout) {
   const { ox, oy, cell } = layout;
-  // 合法落点提示
   if (game.selected && game.validMoves) {
     for (const m of game.validMoves) {
       const { x, y } = cellCenter(layout, m.r, m.c);
@@ -305,7 +270,6 @@ function drawBoardAndPieces(ctx, game, layout) {
       }
     }
   }
-  // 棋子
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const p = game.board[r][c];
     if (!p) continue;
@@ -313,7 +277,6 @@ function drawBoardAndPieces(ctx, game, layout) {
     const { x, y } = cellCenter(layout, r, c);
     drawPiece(ctx, x, y, p, game.selected && game.selected.r === r && game.selected.c === c, cell);
   }
-  // 移动动画
   if (game.animating) {
     const a = game.animating;
     const f = cellCenter(layout, a.fromR, a.fromC);
@@ -329,7 +292,6 @@ function drawBoardAndPieces(ctx, game, layout) {
 function drawPiece(ctx, cx, cy, piece, selected, cell) {
   const radius = cell * 0.42;
   const isRed = piece.color === 'red';
-  // 阴影
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath(); ctx.ellipse(cx + 2, cy + radius * 0.85, radius * 0.9, radius * 0.15, 0, 0, Math.PI * 2); ctx.fill();
   if (selected) { ctx.shadowColor = isRed ? 'rgba(255,60,60,0.7)' : 'rgba(120,120,255,0.6)'; ctx.shadowBlur = radius * 0.6; }
@@ -376,7 +338,7 @@ function drawHistory(ctx, game, layout, W) {
 }
 
 // ---------------------- 结算弹窗 ----------------------
-function renderOverlay(ctx, game, W, H) {
+export function renderOverlay(ctx, game, W, H) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 0, W, H);
   const boxW = W * 0.72, boxH = H * 0.32, bx = W / 2 - boxW / 2, by = H / 2 - boxH / 2;
@@ -397,12 +359,23 @@ function renderOverlay(ctx, game, W, H) {
   const reason = ov.reason === '将杀' ? '将杀 — 对方无路可逃' : '困毙 — 无子可走';
   ctx.fillText(reason, W / 2, by + boxH * 0.48);
 
-  // 按钮
   const btnW = boxW * 0.7, btnH = boxH * 0.22, bxx = W / 2 - btnW / 2, byy = by + boxH * 0.62;
   drawButton(ctx, { x: bxx, y: byy, w: btnW, h: btnH, label: '再来一局', primary: true }, true);
   game._overlayBtn = { x: bxx, y: byy, w: btnW, h: btnH };
 }
 
-module.exports = {
-  computeLayout, cellCenter, hitTestCell, renderHome, renderGame, renderOverlay
-};
+function drawButton(ctx, b, primary) {
+  ctx.save();
+  const g = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
+  if (primary) { g.addColorStop(0, COLORS.gold); g.addColorStop(1, COLORS.goldDim); }
+  else { g.addColorStop(0, '#3a3026'); g.addColorStop(1, '#2a221a'); }
+  ctx.fillStyle = g;
+  roundRect(ctx, b.x, b.y, b.w, b.h, b.h * 0.18);
+  ctx.fill();
+  if (!primary) { ctx.strokeStyle = COLORS.goldDim; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.fillStyle = primary ? COLORS.bgDeep : COLORS.gold;
+  ctx.font = `bold ${Math.round(b.h * 0.4)}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+  ctx.restore();
+}
