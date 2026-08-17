@@ -323,6 +323,8 @@ function doMove(fr, fc, tr, tc, remote) {
   game.selected = null; game.validMoves = [];
   if (!remote) Network.sendMove({ r: fr, c: fc }, { r: tr, c: tc });
   updateHistoryPanel();
+  // 播放走子/吃子音效（在落子动画开始时）
+  Music.playMoveSound(!!taken);
 }
 
 // ---------------------- 走棋记录面板 ----------------------

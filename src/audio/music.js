@@ -181,4 +181,52 @@ function toggleMute() {
 
 function isMuted() { return muted; }
 
-export { play, stop, toggleMute, isMuted };
+// ---------------------- 走子 / 吃子音效 ----------------------
+// 用 Web Audio 合成「木棋落盘」的音效。
+// wasCapture=true 时播放更有力的吃子撞击声。
+function playMoveSound(wasCapture) {
+  ensureAudio();
+  if (!ctx || muted) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const t = ctx.currentTime;
+
+  // 主体撞击：短促衰减的三角波（走子偏低、吃子偏高更有力）
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(wasCapture ? 200 : 140, t);
+  osc.frequency.exponentialRampToValueAtTime(wasCapture ? 75 : 95, t + 0.1);
+  const g = ctx.createGain();
+  const peak = wasCapture ? 0.55 : 0.4;
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + (wasCapture ? 0.3 : 0.18));
+
+  // 噪声层：模拟木头/棋盘接触的质感
+  const dur = 0.05;
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / data.length * 4);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+  const ng = ctx.createGain();
+  ng.gain.value = wasCapture ? 0.4 : 0.25;
+
+  // 吃子额外叠加一个低音撞击
+  if (wasCapture) {
+    const bass = ctx.createOscillator();
+    bass.type = 'sine';
+    bass.frequency.setValueAtTime(90, t);
+    bass.frequency.exponentialRampToValueAtTime(45, t + 0.2);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.4, t);
+    bg.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    bass.connect(bg); bg.connect(masterGain);
+    bass.start(t); bass.stop(t + 0.3);
+  }
+
+  osc.connect(g); g.connect(masterGain);
+  noise.connect(ng); ng.connect(masterGain);
+  osc.start(t); osc.stop(t + (wasCapture ? 0.32 : 0.2));
+  noise.start(t);
+}
+
+export { play, stop, toggleMute, isMuted, playMoveSound };
