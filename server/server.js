@@ -1,6 +1,6 @@
 // ============================================================
 //  双人在线对战服务器（Node.js + ws）
-//  在线大厅 + 邀请对战：玩家上线后出现在大厅，可互相点击邀请对战。
+//  在线大厅 + 邀请对战 + 观战。
 //  协议见 src/net/network.js 顶部注释。
 // ============================================================
 const WebSocket = require('ws');
@@ -10,7 +10,7 @@ const wss = new WebSocket.Server({ port: PORT });
 
 // 玩家池：id -> { ws, name, status, pendingInviteTo, pendingInviteFrom }
 const players = new Map();
-// 对局房间：roomId -> { a, b }   （a 执红=发起者，b 执黑=接受者）
+// 对局房间：roomId -> { a, b, spectators: [], moves: [] }（a 执红=发起者，b 执黑=接受者）
 const rooms = new Map();
 let nextId = 1;
 
@@ -18,18 +18,20 @@ function send(ws, obj) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
-// 某玩家当前是否空闲可被邀请（在线且在大厅且无未决邀请）
+// 某玩家当前是否空闲可被邀请（在线且在大厅且无未决邀请，且未观战）
 function isInvitable(p) {
   return p && p.status === 'lobby' && !p.pendingInviteFrom && !p.pendingInviteTo;
 }
 
-// 广播在线列表（只发大厅状态玩家，给大厅里的人，排除自己）
+// 广播在线列表（给大厅状态玩家，含对局中的玩家信息用于展示）
 function broadcastOnlineList() {
   for (const p of players.values()) {
     if (p.status !== 'lobby') continue;
     const list = [];
     for (const q of players.values()) {
-      if (q.id !== p.id && q.status === 'lobby') list.push({ id: q.id, name: q.name, status: q.status });
+      if (q.id !== p.id && (q.status === 'lobby' || q.status === 'playing')) {
+        list.push({ id: q.id, name: q.name, status: q.status });
+      }
     }
     send(p.ws, { type: 'online_list', players: list });
   }
@@ -37,7 +39,7 @@ function broadcastOnlineList() {
 
 function broadcastPlayerOnline(p) {
   for (const q of players.values()) {
-    if (q.id !== p.id && q.status === 'lobby') {
+    if (q.id !== p.id && (q.status === 'lobby' || q.status === 'playing')) {
       send(q.ws, { type: 'player_online', player: { id: p.id, name: p.name, status: p.status } });
     }
   }
@@ -49,8 +51,44 @@ function broadcastPlayerOffline(id) {
   }
 }
 
+// 当前所有进行中的对局信息
+function gamesList() {
+  const games = [];
+  for (const [roomId, room] of rooms) {
+    games.push({
+      room: roomId,
+      red: { id: room.a.id, name: room.a.name },
+      black: { id: room.b.id, name: room.b.name },
+      status: 'playing'
+    });
+  }
+  return games;
+}
+
+// 广播对局列表给所有大厅玩家（用于观战入口）
+function broadcastGamesInfo() {
+  const games = gamesList();
+  for (const p of players.values()) {
+    if (p.status === 'lobby') send(p.ws, { type: 'games_info', games });
+  }
+}
+
+// 把一条走子转发给对局双方与所有观战者
+function broadcastMove(room, from, to) {
+  send(room.a.ws, { type: 'move', from, to });
+  send(room.b.ws, { type: 'move', from, to });
+  for (const s of room.spectators) send(s, { type: 'move', from, to });
+}
+
+// 通知某房间所有观战者对局结束
+function endSpectate(room) {
+  for (const s of room.spectators) send(s, { type: 'spectate_end' });
+  room.spectators = [];
+}
+
 wss.on('connection', (ws) => {
   let me = null;
+  ws.spectatingRoom = null;
 
   ws.on('message', (raw) => {
     let data;
@@ -65,9 +103,13 @@ wss.on('connection', (ws) => {
       // 给本人发送当前在线列表
       const list = [];
       for (const q of players.values()) {
-        if (q.id !== me.id && q.status === 'lobby') list.push({ id: q.id, name: q.name, status: q.status });
+        if (q.id !== me.id && (q.status === 'lobby' || q.status === 'playing')) {
+          list.push({ id: q.id, name: q.name, status: q.status });
+        }
       }
       send(ws, { type: 'online_list', players: list });
+      // 登录后下发当前对局列表（可观战）
+      send(ws, { type: 'games_info', games: gamesList() });
     }
 
     else if (data.type === 'invite') {
@@ -95,11 +137,11 @@ wss.on('connection', (ws) => {
       inviter.pendingInviteTo = null;
       // 创建对局房间：发起者执红，接受者执黑
       const roomId = 'room_' + me.id + '_' + inviter.id;
-      rooms.set(roomId, { a: inviter, b: me });
+      rooms.set(roomId, { a: inviter, b: me, spectators: [], moves: [] });
       send(inviter.ws, { type: 'start', color: 'red', opponent: { id: me.id, name: me.name } });
       send(me.ws, { type: 'start', color: 'black', opponent: { id: inviter.id, name: inviter.name } });
-      // 两人离开大厅后，广播更新在线列表
       broadcastOnlineList();
+      broadcastGamesInfo();
     }
 
     else if (data.type === 'decline') {
@@ -112,12 +154,32 @@ wss.on('connection', (ws) => {
       me.pendingInviteFrom = null;
     }
 
+    else if (data.type === 'spectate') {
+      if (!me) return;
+      const room = rooms.get(data.room);
+      if (!room) { send(ws, { type: 'error', msg: '该对局已结束' }); return; }
+      // 加入观战
+      room.spectators.push(ws);
+      ws.spectatingRoom = room;
+      me.status = 'spectating';
+      send(ws, {
+        type: 'spectate_start',
+        room: data.room,
+        red: { name: room.a.name },
+        black: { name: room.b.name },
+        moves: room.moves
+      });
+      broadcastOnlineList();
+    }
+
     else if (data.type === 'move') {
       if (!me) return;
-      // 找到我所在房间并转发给对手
       for (const room of rooms.values()) {
-        if (room.a === me) { send(room.b.ws, { type: 'move', from: data.from, to: data.to }); break; }
-        if (room.b === me) { send(room.a.ws, { type: 'move', from: data.from, to: data.to }); break; }
+        if (room.a === me || room.b === me) {
+          room.moves.push({ from: data.from, to: data.to });
+          broadcastMove(room, data.from, data.to);
+          break;
+        }
       }
     }
 
@@ -125,27 +187,26 @@ wss.on('connection', (ws) => {
       if (!me) return;
       const msg = String(data.msg || '').slice(0, 100);
       if (!msg) return;
-      // 找到我所在房间并转发给对手（附带发送者颜色）
       for (const room of rooms.values()) {
-        if (room.a === me) {
-          send(room.b.ws, { type: 'chat', from: { color: 'red', name: me.name }, msg });
-          break;
-        }
-        if (room.b === me) {
-          send(room.a.ws, { type: 'chat', from: { color: 'black', name: me.name }, msg });
-          break;
-        }
+        if (room.a === me) { send(room.b.ws, { type: 'chat', from: { color: 'red', name: me.name }, msg }); break; }
+        if (room.b === me) { send(room.a.ws, { type: 'chat', from: { color: 'black', name: me.name }, msg }); break; }
       }
     }
   });
 
   ws.on('close', () => {
     if (!me) return;
-    // 若在对局中，通知对手
+    // 若在观战中，从该房间的观战列表移除
+    if (ws.spectatingRoom) {
+      ws.spectatingRoom.spectators = ws.spectatingRoom.spectators.filter(s => s !== ws);
+      ws.spectatingRoom = null;
+    }
+    // 若在对局中，通知对手 + 所有观战者对局结束
     for (const [roomId, room] of rooms) {
       if (room.a === me || room.b === me) {
         const opp = room.a === me ? room.b : room.a;
         send(opp.ws, { type: 'opponent_left' });
+        endSpectate(room);
         rooms.delete(roomId);
         break;
       }
@@ -155,7 +216,7 @@ wss.on('connection', (ws) => {
       const target = players.get(me.pendingInviteTo);
       if (target) target.pendingInviteFrom = null;
     }
-    // 若有人邀请我，通知对方邀请失效（对方可重新邀请）
+    // 若有人邀请我，通知对方邀请失效
     if (me.pendingInviteFrom) {
       const inviter = players.get(me.pendingInviteFrom);
       if (inviter) inviter.pendingInviteTo = null;
@@ -163,6 +224,7 @@ wss.on('connection', (ws) => {
     players.delete(me.id);
     broadcastPlayerOffline(me.id);
     broadcastOnlineList();
+    broadcastGamesInfo();
   });
 });
 

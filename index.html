@@ -272,6 +272,82 @@
       font-size: 0.85em;
     }
 
+    /* 观战区 */
+    .spectate-section {
+      margin-top: 16px;
+      display: none;
+    }
+
+    .spectate-section.show {
+      display: block;
+    }
+
+    .spectate-list {
+      max-height: 32vh;
+      overflow-y: auto;
+      margin: 0 -6px;
+      padding: 0 6px;
+    }
+
+    .spectate-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .spectate-list::-webkit-scrollbar-thumb {
+      background: var(--gold-dim);
+      border-radius: 2px;
+    }
+
+    .spectate-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.22);
+      border: 1px solid rgba(100, 200, 255, 0.25);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .spectate-item:hover {
+      background: rgba(100, 200, 255, 0.1);
+      border-color: rgba(100, 200, 255, 0.45);
+    }
+
+    .spectate-item .players {
+      flex: 1;
+      text-align: left;
+      font-size: 0.9em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .spectate-item .players .red {
+      color: #e74c3c;
+    }
+
+    .spectate-item .players .black {
+      color: #cfcfcf;
+    }
+
+    .spectate-item .vs {
+      color: var(--gold-dim);
+      margin: 0 4px;
+    }
+
+    .spectate-item .eye {
+      flex-shrink: 0;
+      font-size: 0.8em;
+      color: #64c8ff;
+      background: rgba(100, 200, 255, 0.12);
+      padding: 4px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(100, 200, 255, 0.3);
+    }
+
     /* 邀请等待条 */
     .invite-pending {
       padding: 10px 14px;
@@ -700,6 +776,11 @@
       </div>
       <div class="list-title">在线玩家（<span id="online-count">0</span>）</div>
       <div class="player-list" id="player-list"></div>
+      <!-- 观战区：正在进行的对局 -->
+      <div class="spectate-section" id="spectate-section">
+        <div class="list-title">正在对战 · 点击观战</div>
+        <div class="spectate-list" id="spectate-list"></div>
+      </div>
       <div class="invite-pending" id="invite-pending">
         <span id="invite-pending-text">等待对方接受...</span>
         <button id="invite-cancel-btn">取消</button>

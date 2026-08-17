@@ -107,6 +107,8 @@ export function renderGame(ctx, game, W, H, dpr) {
 
   layout.headerBtns = drawHeader(ctx, game, layout, W);
   drawPlayerBar(ctx, game, layout, W);
+  // 观战模式：棋盘左上角画眼睛标记
+  if (game.spectating) drawSpectateBadge(ctx, layout, W);
   drawBoard(ctx, layout);
   drawBoardAndPieces(ctx, game, layout);
 
@@ -115,6 +117,20 @@ export function renderGame(ctx, game, W, H, dpr) {
     drawWaiting(ctx, layout, W, H);
   }
   return layout;
+}
+
+function drawSpectateBadge(ctx, layout, W) {
+  // 眼睛徽标：半透明圆形 + 👁 emoji，位于棋盘左上角
+  const cx = layout.boardX + W * 0.045;
+  const cy = layout.boardY + layout.boardRect.h * 0.06;
+  const r = Math.max(18, W * 0.045);
+  ctx.fillStyle = 'rgba(100,200,255,0.15)';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(100,200,255,0.5)';
+  ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.font = `${Math.round(r * 1.1)}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('👁', cx, cy + 1);
 }
 
 function drawWaiting(ctx, layout, W, H) {
@@ -154,6 +170,10 @@ function drawHeader(ctx, game, layout, W) {
 }
 
 function headerButtons(game) {
+  // 观战模式只保留返回按钮（只读）
+  if (game.spectating) {
+    return [{ id: 'back', label: '退出观战' }];
+  }
   // 在线对战：返回 + 记录 + 消息 + 新局（无悔棋，保证公平）
   return [
     { id: 'back', label: '返回' },
@@ -202,6 +222,7 @@ function drawPlayerBar(ctx, game, layout, W) {
   let indicator, bg, fg;
   if (game.gameOver) { indicator = '对局结束'; bg = 'rgba(212,168,84,0.15)'; fg = COLORS.gold; }
   else if (game.online && game.online.waiting) { indicator = '等待对手...'; bg = 'rgba(212,168,84,0.12)'; fg = COLORS.gold; }
+  else if (game.spectating) { indicator = '👁 观战中'; bg = 'rgba(100,200,255,0.14)'; fg = '#64c8ff'; }
   else if (game.turn === 'red') { indicator = '红方走棋' + (game._check ? ' (将军!)' : ''); bg = 'rgba(231,76,60,0.15)'; fg = '#e74c3c'; }
   else { indicator = '黑方走棋' + (game._check ? ' (将军!)' : ''); bg = 'rgba(140,140,140,0.18)'; fg = '#cfcfcf'; }
   const iw = Math.min(W * 0.34, ctx.measureText(indicator).width + 28);

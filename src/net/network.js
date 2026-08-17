@@ -43,6 +43,9 @@ export const Network = {
       case 'chat': this._emit('chat', data); break;
       case 'opponent_left': this._emit('opponentLeft', data); break;
       case 'opponent_busy': this._emit('opponentBusy', data); break;
+      case 'games_info': this._emit('gamesInfo', data); break;
+      case 'spectate_start': this._emit('spectateStart', data); break;
+      case 'spectate_end': this._emit('spectateEnd', data); break;
       case 'error': this._emit('serverError', data); break;
       default: break;
     }
@@ -80,6 +83,10 @@ export const Network = {
 
   sendChat(msg) {
     this.send({ type: 'chat', msg });
+  },
+
+  sendSpectate(roomId) {
+    this.send({ type: 'spectate', room: roomId });
   },
 
   sendInvite(toId) { this.send({ type: 'invite', to: toId }); },

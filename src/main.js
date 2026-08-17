@@ -32,10 +32,13 @@ const game = {
   gameOver: null,              // {winner, reason}
   online: { connected: false, started: false },
   chatLog: [],                 // 对局对话记录 [{who:'mine'|'theirs', name, msg}]
+  spectating: false,           // 是否观战模式
   _layout: null,
   _overlayBtn: null,
   _check: false
 };
+
+let games = [];                // 大厅中正在进行的对局列表 [{room, red:{name}, black:{name}}]
 
 // ---------------------- 初始化 ----------------------
 function init() {
@@ -52,6 +55,10 @@ function init() {
   document.getElementById('logout-btn').addEventListener('click', backToHome);
   document.getElementById('invite-cancel-btn').addEventListener('click', cancelInvite);
   document.getElementById('player-list').addEventListener('click', onPlayerClick);
+  document.getElementById('spectate-list').addEventListener('click', (e) => {
+    const item = e.target.closest('.spectate-item');
+    if (item) onSpectateClick(item.dataset.room);
+  });
 
   // 聊天事件
   document.getElementById('chat-send-btn').addEventListener('click', sendChatMsg);
@@ -148,6 +155,86 @@ function renderPlayerList() {
       <div class="status">在线</div>
     </div>`;
   }).join('');
+}
+
+// ---------------------- 观战 ----------------------
+function renderGamesList() {
+  const section = document.getElementById('spectate-section');
+  const list = document.getElementById('spectate-list');
+  if (!section || !list) return;
+  if (games.length === 0) {
+    section.classList.remove('show');
+    return;
+  }
+  section.classList.add('show');
+  list.innerHTML = games.map(g => {
+    const red = escapeHtml(g.red.name);
+    const black = escapeHtml(g.black.name);
+    return `<div class="spectate-item" data-room="${escapeHtml(g.room)}">
+      <div class="players"><span class="red">${red}</span><span class="vs">VS</span><span class="black">${black}</span></div>
+      <div class="eye">👁 观战</div>
+    </div>`;
+  }).join('');
+}
+
+// 点击观战（事件绑定在 init 里，通过事件委托）
+function onSpectateClick(room) {
+  const g = games.find(x => x.room === room);
+  if (!g) { showToast('该对局已结束'); return; }
+  openModal(
+    '观战对局',
+    `将以旁观者身份观看 <b>${escapeHtml(g.red.name)}</b> VS <b>${escapeHtml(g.black.name)}</b> 的对局`,
+    [
+      { text: '进入观战', ok: true, fn: () => { Network.sendSpectate(room); } },
+      { text: '取消', ok: false }
+    ]
+  );
+}
+
+// 重建棋盘：从初始局面应用走子历史
+function replayBoard(moves) {
+  game.board = Chess.initBoard();
+  game.moveHistory = [];
+  game.captured = { red: [], black: [] };
+  game.turn = 'red';
+  game.selected = null; game.validMoves = [];
+  for (const m of (moves || [])) {
+    const piece = game.board[m.from.r][m.from.c];
+    const taken = game.board[m.to.r][m.to.c];
+    if (!piece) continue;
+    game.moveHistory.push({ fr: m.from.r, fc: m.from.c, tr: m.to.r, tc: m.to.c, piece: { ...piece }, captured: taken ? { ...taken } : null });
+    if (taken) game.captured[piece.color].push(taken);
+    Chess.applyMove(game.board, m.from.r, m.from.c, m.to.r, m.to.c);
+    game.turn = game.turn === 'red' ? 'black' : 'red';
+  }
+}
+
+// 进入观战模式
+function enterSpectate(d) {
+  game.screen = 'spectate';
+  game.spectating = true;
+  game.gameOver = null;
+  game.animating = null;
+  game.online = { connected: true, started: false };
+  game.players = { red: { name: (d.red && d.red.name) || '红方' }, black: { name: (d.black && d.black.name) || '黑方' } };
+  replayBoard(d.moves);
+  // 隐藏大厅，显示对局界面 + 观战标记
+  document.getElementById('lobby').style.display = 'none';
+  showHistoryPanel(true);
+  updateHistoryPanel();
+  // 观战模式不播对局BGM，静默观战（保留大厅BGM）
+  showToast('正在观战');
+}
+
+// 退出观战回大厅
+function leaveSpectate() {
+  game.spectating = false;
+  game.screen = 'home';
+  resetState();
+  showHomeScreen();
+  // 重新登录以回到大厅
+  Network.close();
+  setTimeout(() => { Network.connect(myName); }, 200);
 }
 
 function onPlayerClick(e) {
@@ -272,6 +359,8 @@ function handleTouch(x, y) {
       if (b._rect && inRect(x, y, b._rect)) { handleHeaderButton(b.id); return; }
     }
   }
+  // 观战模式：只读，禁走子（已处理头部按钮）
+  if (game.spectating || game.screen === 'spectate') return;
   if (game.gameOver || game.animating) return;
   if (!game.online.started) return;
   if (game.turn !== game.myColor) return; // 不是我的回合，忽略点击
@@ -280,8 +369,10 @@ function handleTouch(x, y) {
 }
 
 function handleHeaderButton(id) {
-  if (id === 'back') backToHome();
-  else if (id === 'chat') openChatInput();
+  if (id === 'back') {
+    if (game.spectating) leaveSpectate();
+    else backToHome();
+  } else if (id === 'chat') openChatInput();
   else if (id === 'log') openChatLog();
   else if (id === 'new') { /* 在线对局无重开，需回大厅重新邀约 */ }
 }
@@ -481,6 +572,7 @@ function backToHome() {
 
 function resetState() {
   game.screen = 'home';
+  game.spectating = false;
   game.board = Chess.initBoard();
   game.selected = null; game.validMoves = []; game.moveHistory = [];
   game.captured = { red: [], black: [] };
@@ -489,6 +581,7 @@ function resetState() {
   game._check = false;
   myId = null;
   lobbyPlayers = [];
+  games = [];
   pendingInviteTo = null;
   invitedFrom = null;
   clearPendingInvite();
@@ -579,6 +672,22 @@ function registerNetwork() {
   Network.on('start', (d) => {
     beginGame(d.color, (d.opponent && d.opponent.name) || '对手');
     showToast('对局开始!');
+  });
+
+  Network.on('gamesInfo', (d) => {
+    games = d.games || [];
+    renderGamesList();
+  });
+
+  Network.on('spectateStart', (d) => {
+    enterSpectate(d);
+  });
+
+  Network.on('spectateEnd', () => {
+    if (game.spectating) {
+      showToast('对局已结束');
+      leaveSpectate();
+    }
   });
 
   Network.on('opponentMove', (d) => {
