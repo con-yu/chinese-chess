@@ -109,7 +109,6 @@ export function renderGame(ctx, game, W, H, dpr) {
   drawPlayerBar(ctx, game, layout, W);
   drawBoard(ctx, layout);
   drawBoardAndPieces(ctx, game, layout);
-  drawHistory(ctx, game, layout, W, H);
 
   // 等待对手提示
   if (game.online && game.online.waiting) {
@@ -314,31 +313,6 @@ function drawPiece(ctx, cx, cy, piece, selected, cell) {
   ctx.font = `bold ${radius * 1.2}px "STKaiti","KaiTi","Noto Sans SC","Microsoft YaHei",sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(name, cx, cy + 1);
-}
-
-function drawHistory(ctx, game, layout, W, H) {
-  const y = layout.boardRect.y + layout.boardRect.h + (H - layout.historyH - (layout.boardRect.y + layout.boardRect.h)) / 2;
-  const x = W * 0.03, w = W * 0.94;
-  ctx.fillStyle = COLORS.bgPanel;
-  roundRect(ctx, x, y, w, layout.historyH, 8); ctx.fill();
-  ctx.strokeStyle = 'rgba(139,105,20,0.25)'; ctx.lineWidth = 1; ctx.stroke();
-
-  const hist = game.moveHistory;
-  let text = '';
-  for (let i = 0; i < hist.length; i++) {
-    const mv = hist[i];
-    const name = NAMES[mv.piece.color][mv.piece.type];
-    const fromCol = '９８７６５４３２１'[mv.fc], fromRow = mv.fr + 1;
-    const toCol = '９８７６５４３２１'[mv.tc], toRow = mv.tr + 1;
-    text += (i % 2 === 0 ? '红 ' : '黑 ') + name + fromCol + fromRow + '→' + toCol + toRow + '   ';
-  }
-  ctx.fillStyle = COLORS.textDim;
-  ctx.font = `${Math.round(layout.historyH * 0.3)}px sans-serif`;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.save();
-  ctx.beginPath(); roundRect(ctx, x, y, w, layout.historyH, 8); ctx.clip();
-  ctx.fillText(text.slice(-Math.floor(w / (layout.historyH * 0.22)) * 3), x + 8, y + layout.historyH / 2);
-  ctx.restore();
 }
 
 // ---------------------- 结算弹窗 ----------------------

@@ -365,6 +365,105 @@
       border: 1px solid rgba(139, 105, 20, 0.4);
     }
 
+    /* ---------- 走棋记录面板 ---------- */
+    #history-panel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 15;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      height: 54px;
+      padding: 0 12px;
+      background: linear-gradient(160deg, rgba(36, 30, 24, 0.96), rgba(26, 20, 16, 0.96));
+      border-top: 1px solid rgba(139, 105, 20, 0.3);
+      backdrop-filter: blur(4px);
+    }
+
+    #history-panel.show {
+      display: flex;
+    }
+
+    .history-label {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.2;
+      min-width: 44px;
+    }
+
+    .history-label .t {
+      font-size: 0.72em;
+      color: var(--gold);
+      letter-spacing: 1px;
+    }
+
+    .history-label .n {
+      font-size: 0.72em;
+      color: var(--text-dim);
+    }
+
+    #history-scroll {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 4px 0;
+      white-space: nowrap;
+    }
+
+    #history-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .history-step {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(212, 168, 84, 0.18);
+      font-size: 0.78em;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .history-step .side {
+      font-size: 0.7em;
+      opacity: 0.75;
+    }
+
+    .history-step .side.red {
+      color: #e74c3c;
+    }
+
+    .history-step .side.black {
+      color: #cfcfcf;
+    }
+
+    .history-step .piece {
+      font-weight: bold;
+      color: var(--gold);
+    }
+
+    .history-step .from {
+      color: var(--text-dim);
+    }
+
+    .history-step .arrow {
+      color: var(--gold-dim);
+      font-size: 0.7em;
+    }
+
     /* ---------- Toast ---------- */
     #toast {
       position: fixed;
@@ -439,6 +538,15 @@
   </div>
 
   <div id="toast"></div>
+
+  <!-- 走棋记录面板（对局时显示，可横向滑动） -->
+  <div id="history-panel">
+    <div class="history-label">
+      <span class="t">走棋</span>
+      <span class="n" id="history-count">0</span>
+    </div>
+    <div id="history-scroll"></div>
+  </div>
 
   <script type="module" src="./src/main.js"></script>
 </body>

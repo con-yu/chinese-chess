@@ -223,8 +223,10 @@ function beginGame(color, opponentName) {
     ? { red: { name: myName }, black: { name: opponentName } }
     : { red: { name: opponentName }, black: { name: myName } };
   game.screen = 'playing';
-  // 隐藏大厅
+  // 隐藏大厅，显示走棋记录面板
   document.getElementById('lobby').style.display = 'none';
+  showHistoryPanel(true);
+  updateHistoryPanel();
 }
 
 // ---------------------- 输入 ----------------------
@@ -300,6 +302,51 @@ function doMove(fr, fc, tr, tc, remote) {
   game.turn = game.turn === 'red' ? 'black' : 'red';
   game.selected = null; game.validMoves = [];
   if (!remote) Network.sendMove({ r: fr, c: fc }, { r: tr, c: tc });
+  updateHistoryPanel();
+}
+
+// ---------------------- 走棋记录面板 ----------------------
+function updateHistoryPanel() {
+  const panel = document.getElementById('history-panel');
+  const scroll = document.getElementById('history-scroll');
+  const count = document.getElementById('history-count');
+  if (!panel || !scroll || !count) return;
+  if (game.screen !== 'playing') return;
+
+  const hist = game.moveHistory;
+  count.textContent = hist.length;
+  // 保留最后一个 DOM 引用用于滚动，其余重建
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < hist.length; i++) {
+    const mv = hist[i];
+    const step = document.createElement('div');
+    step.className = 'history-step';
+    const side = mv.piece.color === 'red' ? '红' : '黑';
+    const name = Chess.NAMES[mv.piece.color][mv.piece.type];
+    const digit = '９８７６５４３２１';
+    step.innerHTML =
+      `<span class="side ${mv.piece.color}">${side}</span>` +
+      `<span class="piece">${name}</span>` +
+      `<span class="from">${digit[mv.fc]}${mv.fr + 1}</span>` +
+      `<span class="arrow">→</span>` +
+      `<span class="from">${digit[mv.tc]}${mv.tr + 1}</span>`;
+    frag.appendChild(step);
+  }
+  scroll.innerHTML = '';
+  scroll.appendChild(frag);
+  // 自动滚动到最新一步
+  scroll.scrollLeft = scroll.scrollWidth;
+}
+
+function showHistoryPanel(show) {
+  const panel = document.getElementById('history-panel');
+  if (panel) panel.classList.toggle('show', show);
+  if (!show) {
+    const scroll = document.getElementById('history-scroll');
+    const count = document.getElementById('history-count');
+    if (scroll) scroll.innerHTML = '';
+    if (count) count.textContent = '0';
+  }
 }
 
 // ---------------------- 返回大厅 ----------------------
@@ -322,6 +369,7 @@ function resetState() {
   pendingInviteTo = null;
   invitedFrom = null;
   clearPendingInvite();
+  showHistoryPanel(false);
 }
 
 function showHomeScreen() {
