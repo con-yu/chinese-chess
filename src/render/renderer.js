@@ -105,7 +105,7 @@ export function renderGame(ctx, game, W, H, dpr) {
   drawPlayerBar(ctx, game, layout, W);
   drawBoard(ctx, layout);
   drawBoardAndPieces(ctx, game, layout);
-  drawHistory(ctx, game, layout, W);
+  drawHistory(ctx, game, layout, W, H);
 
   // 等待对手提示
   if (game.online && game.online.waiting) {
@@ -312,7 +312,7 @@ function drawPiece(ctx, cx, cy, piece, selected, cell) {
   ctx.fillText(name, cx, cy + 1);
 }
 
-function drawHistory(ctx, game, layout, W) {
+function drawHistory(ctx, game, layout, W, H) {
   const y = layout.boardRect.y + layout.boardRect.h + (H - layout.historyH - (layout.boardRect.y + layout.boardRect.h)) / 2;
   const x = W * 0.03, w = W * 0.94;
   ctx.fillStyle = COLORS.bgPanel;
