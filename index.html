@@ -464,6 +464,41 @@
       font-size: 0.7em;
     }
 
+    /* ---------- 音乐开关 ---------- */
+    #music-btn {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 55;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(212, 168, 84, 0.4);
+      background: rgba(36, 30, 24, 0.75);
+      color: var(--gold);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      transition: background 0.2s, transform 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #music-btn:hover {
+      background: rgba(212, 168, 84, 0.2);
+    }
+
+    #music-btn:active {
+      transform: scale(0.92);
+    }
+
+    #music-btn.muted {
+      opacity: 0.6;
+      filter: grayscale(1);
+    }
+
     /* ---------- 聊天消息气泡（3秒消失） ---------- */
     #chat-bubble {
       position: fixed;
@@ -691,6 +726,9 @@
     </div>
     <div id="history-scroll"></div>
   </div>
+
+  <!-- 音乐开关 -->
+  <button id="music-btn" title="音乐开关">🎵</button>
 
   <!-- 聊天消息气泡（3秒消失） -->
   <div id="chat-bubble">

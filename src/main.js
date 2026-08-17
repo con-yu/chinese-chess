@@ -6,6 +6,7 @@
 import * as Chess from './engine/chess.js';
 import * as Renderer from './render/renderer.js';
 import { Network } from './net/network.js';
+import * as Music from './audio/music.js';
 
 let canvas, ctx;
 let W = 0, H = 0, dpr = 1;
@@ -59,6 +60,9 @@ function init() {
   // 点击遮罩关闭弹窗
   document.getElementById('chat-input-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeChatInputModal(); });
   document.getElementById('chat-log-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeChatLogModal(); });
+
+  // 音乐静音按钮
+  document.getElementById('music-btn').addEventListener('click', toggleMusicMute);
 
   registerNetwork();
   requestAnimationFrame(loop);
@@ -123,6 +127,8 @@ function showLobby() {
   document.getElementById('me-avatar').textContent = firstChar(myName);
   document.getElementById('me-name').textContent = myName;
   try { localStorage.setItem('cc_name', myName); } catch (e) {}
+  Music.play('lobby'); // 进入大厅播放大厅 BGM
+  updateMuteBtn();
 }
 
 function renderPlayerList() {
@@ -237,6 +243,8 @@ function beginGame(color, opponentName) {
   document.getElementById('lobby').style.display = 'none';
   showHistoryPanel(true);
   updateHistoryPanel();
+  Music.play('game'); // 进入对局切换到对局 BGM
+  updateMuteBtn();
 }
 
 // ---------------------- 输入 ----------------------
@@ -441,11 +449,32 @@ function renderChatLog() {
   el.scrollTop = el.scrollHeight;
 }
 
+// ---------------------- 音乐控制 ----------------------
+function toggleMusicMute() {
+  const muted = Music.toggleMute();
+  updateMuteBtn();
+  showToast(muted ? '已静音' : '已开启声音');
+}
+
+function updateMuteBtn() {
+  const btn = document.getElementById('music-btn');
+  if (!btn) return;
+  if (Music.isMuted()) {
+    btn.textContent = '🔇';
+    btn.classList.add('muted');
+  } else {
+    btn.textContent = '🎵';
+    btn.classList.remove('muted');
+  }
+}
+
 // ---------------------- 返回大厅 ----------------------
 function backToHome() {
   Network.close();
   resetState();
   showHomeScreen();
+  Music.play('lobby'); // 返回后切换回大厅 BGM
+  updateMuteBtn();
 }
 
 function resetState() {
