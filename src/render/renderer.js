@@ -41,10 +41,14 @@ function computeLayout(W, H) {
   const boardBottom = H - historyH;
   const availW = W - m * 2;
   const availH = (boardBottom - boardTop) - m * 2;
-  let bw, bh;
-  if (availW / availH > 8 / 9) { bh = availH; bw = bh * 8 / 9; } else { bw = availW; bh = bw * 9 / 8; }
-  const cell = bw / 8;
-  const pad = cell * 0.55;
+  // 棋盘总宽 = 格子区(8*cell) + 左右边距(2*pad)，pad = cell*0.55
+  // 所以总宽 = 9.1*cell，总高 = 9.1*cell（9 格行距 + 2*pad）
+  const padScale = 0.55;
+  const boardRatio = 9.1; // (8 + 2*0.55)
+  let cell = Math.min(availW / boardRatio, availH / boardRatio);
+  cell = Math.max(20, Math.min(cell, 80));
+  const bw = cell * 8, bh = cell * 9;
+  const pad = cell * padScale;
   const boardW = bw + pad * 2, boardH = bh + pad * 2;
   const boardX = (W - boardW) / 2;
   const boardY = boardTop + (boardBottom - boardTop - boardH) / 2;
