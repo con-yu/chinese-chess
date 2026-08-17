@@ -120,6 +120,23 @@ wss.on('connection', (ws) => {
         if (room.b === me) { send(room.a.ws, { type: 'move', from: data.from, to: data.to }); break; }
       }
     }
+
+    else if (data.type === 'chat') {
+      if (!me) return;
+      const msg = String(data.msg || '').slice(0, 100);
+      if (!msg) return;
+      // 找到我所在房间并转发给对手（附带发送者颜色）
+      for (const room of rooms.values()) {
+        if (room.a === me) {
+          send(room.b.ws, { type: 'chat', from: { color: 'red', name: me.name }, msg });
+          break;
+        }
+        if (room.b === me) {
+          send(room.a.ws, { type: 'chat', from: { color: 'black', name: me.name }, msg });
+          break;
+        }
+      }
+    }
   });
 
   ws.on('close', () => {

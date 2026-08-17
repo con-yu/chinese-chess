@@ -30,6 +30,7 @@ const game = {
   animating: null,
   gameOver: null,              // {winner, reason}
   online: { connected: false, started: false },
+  chatLog: [],                 // 对局对话记录 [{who:'mine'|'theirs', name, msg}]
   _layout: null,
   _overlayBtn: null,
   _check: false
@@ -50,6 +51,14 @@ function init() {
   document.getElementById('logout-btn').addEventListener('click', backToHome);
   document.getElementById('invite-cancel-btn').addEventListener('click', cancelInvite);
   document.getElementById('player-list').addEventListener('click', onPlayerClick);
+
+  // 聊天事件
+  document.getElementById('chat-send-btn').addEventListener('click', sendChatMsg);
+  document.getElementById('chat-input-field').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMsg(); });
+  document.getElementById('chat-log-close').addEventListener('click', closeChatLogModal);
+  // 点击遮罩关闭弹窗
+  document.getElementById('chat-input-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeChatInputModal(); });
+  document.getElementById('chat-log-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeChatLogModal(); });
 
   registerNetwork();
   requestAnimationFrame(loop);
@@ -223,6 +232,7 @@ function beginGame(color, opponentName) {
     ? { red: { name: myName }, black: { name: opponentName } }
     : { red: { name: opponentName }, black: { name: myName } };
   game.screen = 'playing';
+  game.chatLog = [];
   // 隐藏大厅，显示走棋记录面板
   document.getElementById('lobby').style.display = 'none';
   showHistoryPanel(true);
@@ -263,6 +273,8 @@ function handleTouch(x, y) {
 
 function handleHeaderButton(id) {
   if (id === 'back') backToHome();
+  else if (id === 'chat') openChatInput();
+  else if (id === 'log') openChatLog();
   else if (id === 'new') { /* 在线对局无重开，需回大厅重新邀约 */ }
 }
 
@@ -349,6 +361,86 @@ function showHistoryPanel(show) {
   }
 }
 
+// ---------------------- 聊天 ----------------------
+let bubbleTimer = null;
+
+function openChatInput() {
+  if (game.screen !== 'playing') return;
+  document.getElementById('chat-input-modal').classList.add('active');
+  const field = document.getElementById('chat-input-field');
+  field.value = '';
+  setTimeout(() => field.focus(), 60);
+}
+
+function closeChatInputModal() {
+  document.getElementById('chat-input-modal').classList.remove('active');
+}
+
+function sendChatMsg() {
+  const field = document.getElementById('chat-input-field');
+  const msg = (field.value || '').trim();
+  if (!msg) return;
+  closeChatInputModal();
+  Network.sendChat(msg);
+  showChatBubble('mine', myName, msg);
+  game.chatLog.push({ who: 'mine', name: myName, msg });
+}
+
+// 收到对手消息（由网络事件调用）
+function onChatReceived(d) {
+  const from = d.from || {};
+  const color = from.color;
+  const name = from.name || (color === 'red' ? '红方' : '黑方');
+  showChatBubble('theirs', name, d.msg);
+  game.chatLog.push({ who: 'theirs', name, msg: d.msg });
+}
+
+// 显示消息气泡，3 秒后消失
+function showChatBubble(who, name, msg) {
+  const bubble = document.getElementById('chat-bubble');
+  const whoEl = document.getElementById('bubble-who');
+  const msgEl = document.getElementById('bubble-msg');
+  if (!bubble || !whoEl || !msgEl) return;
+  whoEl.className = 'who ' + (who === 'mine' ? 'mine' : 'theirs');
+  whoEl.textContent = name + '：';
+  msgEl.textContent = msg;
+  bubble.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubble.classList.remove('show'), 3000);
+}
+
+function openChatLog() {
+  if (game.screen !== 'playing') return;
+  renderChatLog();
+  document.getElementById('chat-log-modal').classList.add('active');
+}
+
+function closeChatLogModal() {
+  document.getElementById('chat-log-modal').classList.remove('active');
+}
+
+function renderChatLog() {
+  const el = document.getElementById('chat-log');
+  if (!el) return;
+  el.classList.add('active');
+  if (game.chatLog.length === 0) {
+    el.innerHTML = '<div class="log-empty">暂无对话记录</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const item of game.chatLog) {
+    const row = document.createElement('div');
+    row.className = 'log-item';
+    row.innerHTML =
+      `<span class="who ${item.who === 'mine' ? 'mine' : 'theirs'}">${escapeHtml(item.name)}</span>` +
+      `<span class="txt">${escapeHtml(item.msg)}</span>`;
+    frag.appendChild(row);
+  }
+  el.innerHTML = '';
+  el.appendChild(frag);
+  el.scrollTop = el.scrollHeight;
+}
+
 // ---------------------- 返回大厅 ----------------------
 function backToHome() {
   Network.close();
@@ -369,7 +461,13 @@ function resetState() {
   pendingInviteTo = null;
   invitedFrom = null;
   clearPendingInvite();
+  game.chatLog = [];
   showHistoryPanel(false);
+  closeChatInputModal();
+  closeChatLogModal();
+  const bubble = document.getElementById('chat-bubble');
+  if (bubble) bubble.classList.remove('show');
+  clearTimeout(bubbleTimer);
 }
 
 function showHomeScreen() {
@@ -455,6 +553,10 @@ function registerNetwork() {
   Network.on('opponentMove', (d) => {
     if (game.animating) { setTimeout(() => doMove(d.from.r, d.from.c, d.to.r, d.to.c, true), 240); }
     else doMove(d.from.r, d.from.c, d.to.r, d.to.c, true);
+  });
+
+  Network.on('chat', (d) => {
+    onChatReceived(d);
   });
 
   Network.on('opponentLeft', () => {

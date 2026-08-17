@@ -154,8 +154,13 @@ function drawHeader(ctx, game, layout, W) {
 }
 
 function headerButtons(game) {
-  // 在线对战：返回 + 新局（无悔棋，保证公平）
-  return [{ id: 'back', label: '返回' }, { id: 'new', label: '新局' }];
+  // 在线对战：返回 + 记录 + 消息 + 新局（无悔棋，保证公平）
+  return [
+    { id: 'back', label: '返回' },
+    { id: 'log', label: '记录' },
+    { id: 'chat', label: '消息' },
+    { id: 'new', label: '新局' }
+  ];
 }
 
 function drawSmallButton(ctx, rect, label) {

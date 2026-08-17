@@ -15,6 +15,8 @@
 //    服务器 -> 客户端: {type:'opponent_busy'}                             // 对方忙碌/已被邀请
 //    客户端 -> 服务器: {type:'move', from:{r,c}, to:{r,c}}
 //    服务器 -> 客户端: {type:'move', from:{r,c}, to:{r,c}}                // 转发给对手
+//    客户端 -> 服务器: {type:'chat', msg}                                 // 发送对局消息
+//    服务器 -> 客户端: {type:'chat', from:{color,name}, msg}              // 收到对手消息
 //    服务器 -> 客户端: {type:'opponent_left'}                             // 对手离开
 //    服务器 -> 客户端: {type:'error', msg}
 // ============================================================
@@ -38,6 +40,7 @@ export const Network = {
       case 'invite_declined': this._emit('inviteDeclined', data); break;
       case 'start': this._emit('start', data); break;
       case 'move': this._emit('opponentMove', data); break;
+      case 'chat': this._emit('chat', data); break;
       case 'opponent_left': this._emit('opponentLeft', data); break;
       case 'opponent_busy': this._emit('opponentBusy', data); break;
       case 'error': this._emit('serverError', data); break;
@@ -73,6 +76,10 @@ export const Network = {
 
   sendMove(from, to) {
     this.send({ type: 'move', from, to });
+  },
+
+  sendChat(msg) {
+    this.send({ type: 'chat', msg });
   },
 
   sendInvite(toId) { this.send({ type: 'invite', to: toId }); },
